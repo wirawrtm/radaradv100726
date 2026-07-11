@@ -1,58 +1,20 @@
-# React Channel App
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+</div>
 
-A full-stack application built with React, Vite, Express, and PostgreSQL (via Drizzle ORM).
+# Run and deploy your AI Studio app
 
-## Deployment (Penting untuk Github)
+This contains everything you need to run your app locally.
 
-**PENTING: Aplikasi ini memiliki Backend (Express) dan Database (PostgreSQL).**
-**GitHub Pages HANYA bisa menjalankan Frontend Statis (HTML/CSS/JS).** 
+View your app in AI Studio: https://ai.studio/apps/4dd3d369-85ae-4a2c-8eec-fe4d7a430a5c
 
-Jika Anda mengupload ini ke GitHub Pages, **menu login tidak akan bisa berjalan** karena backend Node.js (`server.ts`) tidak bisa dijalankan di GitHub Pages, sehingga API `/api` akan me-return 404 (Not Found).
+## Run Locally
 
-Untuk mem-publish aplikasi full-stack ini agar login bisa berjalan, Anda **harus menggunakan layanan yang mendukung backend Node.js**, seperti:
-
-### 1. Render.com (Gratis & Paling Mudah)
-Render sangat direkomendasikan karena Anda cukup menghubungkan repository GitHub dan otomatis akan me-running backend.
-1. Buat akun di [Render.com](https://render.com/)
-2. Klik "New +" lalu pilih **"Web Service"**
-3. Hubungkan akun GitHub Anda dan pilih repository ini
-4. Konfigurasi yang harus diisi:
-   - **Environment**: `Node`
-   - **Build Command**: `npm install && npm run build`
-   - **Start Command**: `npm run start`
-5. Masukkan konfigurasi Database (Supabase / Cloud SQL) di menu **Environment Variables**:
-   - `SQL_HOST` = host database Anda
-   - `SQL_USER` = user database
-   - `SQL_PASSWORD` = password db
-   - `SQL_DB_NAME` = nama database
-   - `SQL_ADMIN_USER` = admin user db
-   - `SQL_ADMIN_PASSWORD` = admin password db
-6. Klik **"Deploy Web Service"**
-
-File `render.yaml` sudah disiapkan, sehingga Render akan otomatis mengenali settingan di atas!
-
-### 2. Railway.app atau layanan Node.js lainnya
-Gunakan cara yang mirip dengan Render, pastikan menjalankan Build Command: `npm run build` dan Start command `npm run start`.
+**Prerequisites:**  Node.js
 
 
----
-
-## Setup di Komputer Lokal
-
-1. **Install Dependencies**
-   ```bash
-   npm install
-   ```
-
-2. **Konfigurasi Database**
-   Copy `.env.example` ke `.env` lalu isi dengan detail Supabase atau PostgreSQL Anda.
-
-3. **Migrasi / Inisialisasi Database**
-   ```bash
-   npx drizzle-kit push
-   ```
-
-4. **Jalankan Aplikasi Lokal (Dev)**
-   ```bash
-   npm run dev
-   ```
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`

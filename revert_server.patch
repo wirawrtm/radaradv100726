@@ -1,0 +1,144 @@
+--- server.ts
++++ server.ts
+@@ -4,7 +4,6 @@
+ import { google } from "googleapis";
+ import dotenv from "dotenv";
+ import fs from "fs";
+-import { getSheetFromDb, updateSheetInDb, appendRowToDb } from "./src/db/mapping.js";
+ 
+ dotenv.config();
+ 
+@@ -384,6 +383,20 @@
+ 
+ // Fetch helper from a specified sheet
+ async function getSheetValues(sheetName: string): Promise<any[][] | null> {
++  if (!isDirectConfigured) {
++    initLocalDb();
++    try {
++      const db = JSON.parse(fs.readFileSync(LOCAL_DB_PATH, "utf8"));
++      return db[sheetName] || [];
++    } catch (e) {
++      console.error("Error reading from local DB:", e);
++      return [];
++    }
++  }
++
++  const sheets = getSheetsClient();
++  if (!sheets) return null;
++
+   const now = Date.now();
+   // Return valid cached response if available
+   if (
+@@ -392,7 +405,7 @@
+     return cacheMap[sheetName].data;
+   }
+ 
+-  // Coalesce overlapping requests to avoid redundant simultaneous calls
++  // Coalesce overlapping requests to avoid redundant simultaneous calls to Google API
+   if (activeRequests[sheetName]) {
+     return activeRequests[sheetName];
+   }
+@@ -400,10 +413,17 @@
+   const fetchPromise = (async () => {
+     try {
+-      const data = await getSheetFromDb(sheetName) || [];
++      const response = await sheets.spreadsheets.values.get({
++        spreadsheetId,
++        range: sheetName,
++      });
++      const data = response.data.values || [];
+       cacheMap[sheetName] = { data, timestamp: Date.now() };
+       return data;
+     } catch (e) {
+-      console.warn(`Error reading sheet ${sheetName} from DB, using empty array:`, e);
++      console.warn(
++        `Error reading sheet ${sheetName} from API, using empty array:`,
++        e,
++      );
+       return [];
+     } finally {
+       delete activeRequests[sheetName];
+@@ -423,12 +443,37 @@
+ ): Promise<boolean> {
+   const sanitizedRow = (rowValues || []).map(cell => (cell === undefined || cell === null ? "" : cell));
+ 
+-  invalidateCache(sheetName);
+-  try {
+-    await appendRowToDb(sheetName, sanitizedRow);
+-    return true;
+-  } catch (e) {
+-    console.error(`Error appending to DB:`, e);
++  if (!isDirectConfigured) {
++    initLocalDb();
++    try {
++      const db = JSON.parse(fs.readFileSync(LOCAL_DB_PATH, "utf8"));
++      if (!db[sheetName]) db[sheetName] = [];
++      db[sheetName].push(sanitizedRow);
++      fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(db, null, 2), "utf8");
++      return true;
++    } catch (e) {
++      console.error("Error appending to local DB:", e);
++      return false;
++    }
++  }
++
++  const sheets = getSheetsClient();
++  if (!sheets) return false;
++  invalidateCache(sheetName);
++  try {
++    await sheets.spreadsheets.values.append({
++      spreadsheetId,
++      range: `${sheetName}!A1`,
++      valueInputOption: "USER_ENTERED",
++      requestBody: { values: [sanitizedRow] },
++    });
++    return true;
++  } catch (e) {
++    console.error(`Error appending to sheet ${sheetName}:`, e);
+     return false;
+   }
+ }
+@@ -449,12 +494,37 @@
+     return sanitizedRow;
+   });
+ 
+-  invalidateCache(sheetName);
+-  try {
+-    await updateSheetInDb(sheetName, sanitizedValues);
+-    return true;
+-  } catch (e) {
+-    console.error(`Error updating sheet ${sheetName} to DB:`, e);
++  if (!isDirectConfigured) {
++    initLocalDb();
++    try {
++      const db = JSON.parse(fs.readFileSync(LOCAL_DB_PATH, "utf8"));
++      db[sheetName] = sanitizedValues;
++      fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(db, null, 2), "utf8");
++      return true;
++    } catch (e) {
++      console.error("Error writing to local DB:", e);
++      return false;
++    }
++  }
++
++  const sheets = getSheetsClient();
++  if (!sheets) return false;
++  invalidateCache(sheetName);
++  try {
++    // Clear first to avoid leftover values
++    await sheets.spreadsheets.values.clear({
++      spreadsheetId,
++      range: sheetName,
++    });
++    await sheets.spreadsheets.values.update({
++      spreadsheetId,
++      range: `${sheetName}!A1`,
++      valueInputOption: "USER_ENTERED",
++      requestBody: { values: sanitizedValues },
++    });
++    return true;
++  } catch (e) {
++    console.error(`Error updating sheet ${sheetName}:`, e);
+     return false;
+   }
+ }

@@ -4,7 +4,6 @@ import { createServer as createViteServer } from "vite";
 import { google } from "googleapis";
 import dotenv from "dotenv";
 import fs from "fs";
-import { getSheetFromDb, updateSheetInDb, appendRowToDb } from "./src/db/mapping.js";
 
 dotenv.config();
 
@@ -384,6 +383,11 @@ function invalidateCache(sheetName: string) {
 
 // Fetch helper from a specified sheet
 async function getSheetValues(sheetName: string): Promise<any[][] | null> {
+  if (!isDirectConfigured) throw new Error("API not configured, fallback to AppScript");
+
+  const sheets = getSheetsClient();
+  if (!sheets) return null;
+
   const now = Date.now();
   // Return valid cached response if available
   if (
@@ -393,19 +397,23 @@ async function getSheetValues(sheetName: string): Promise<any[][] | null> {
     return cacheMap[sheetName].data;
   }
 
-  // Coalesce overlapping requests to avoid redundant simultaneous calls
+  // Coalesce overlapping requests to avoid redundant simultaneous calls to Google API
   if (activeRequests[sheetName]) {
     return activeRequests[sheetName];
   }
 
   const fetchPromise = (async () => {
     try {
-      const data = await getSheetFromDb(sheetName) || [];
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: sheetName,
+      });
+      const data = response.data.values || [];
       cacheMap[sheetName] = { data, timestamp: Date.now() };
       return data;
     } catch (e) {
-      console.warn(`Error reading sheet ${sheetName} from DB, using empty array:`, e);
-      return [];
+      console.error(`Error reading sheet ${sheetName} from API:`, e);
+      throw new Error("Failed to read from Google Sheets API");
     } finally {
       delete activeRequests[sheetName];
     }
@@ -431,13 +439,27 @@ async function updateSheetValues(
     return sanitizedRow;
   });
 
+  if (!isDirectConfigured) throw new Error("API not configured, fallback to AppScript");
+
+  const sheets = getSheetsClient();
+  if (!sheets) return false;
   invalidateCache(sheetName);
   try {
-    await updateSheetInDb(sheetName, sanitizedValues);
+    // Clear first to avoid leftover values
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId,
+      range: sheetName,
+    });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${sheetName}!A1`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: sanitizedValues },
+    });
     return true;
   } catch (e) {
-    console.error(`Error updating sheet ${sheetName} to DB:`, e);
-    return false;
+    console.error(`Error updating sheet ${sheetName}:`, e);
+    throw new Error(`Failed to update sheet ${sheetName}`);
   }
 }
 
@@ -448,13 +470,22 @@ async function appendSheetRow(
 ): Promise<boolean> {
   const sanitizedRow = (rowValues || []).map(cell => (cell === undefined || cell === null ? "" : cell));
 
+  if (!isDirectConfigured) throw new Error("API not configured, fallback to AppScript");
+
+  const sheets = getSheetsClient();
+  if (!sheets) return false;
   invalidateCache(sheetName);
   try {
-    await appendRowToDb(sheetName, sanitizedRow);
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `${sheetName}!A1`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [sanitizedRow] },
+    });
     return true;
   } catch (e) {
-    console.error(`Error appending to DB:`, e);
-    return false;
+    console.error(`Error appending to sheet ${sheetName}:`, e);
+    throw new Error(`Failed to append to sheet ${sheetName}`);
   }
 }
 

@@ -28,7 +28,29 @@ import {
   LabelList,
 } from "recharts";
 
+
+const ORIGINAL_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxUUPKhsEo-LencnYjex3gOhVl7w2tS154VCICVbqGfFSBLAwzv0P7XOu9oMTE1jTUg1g/exec";
 const SCRIPT_URL = (import.meta as any).env.VITE_SCRIPT_URL || "/api";
+
+const customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+  const originalFetch = window.fetch;
+  let url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
+  if (url && url.includes(SCRIPT_URL) && SCRIPT_URL !== ORIGINAL_SCRIPT_URL) {
+    try {
+      const res = await originalFetch(input, init);
+      const contentType = res.headers.get("content-type");
+      if (!res.ok || (contentType && contentType.indexOf("application/json") === -1)) {
+         throw new Error("Invalid API response, falling back");
+      }
+      return res;
+    } catch (err) {
+      console.warn("Primary API failed, falling back to Apps Script:", err);
+      const fallbackUrl = url.replace(SCRIPT_URL, ORIGINAL_SCRIPT_URL);
+      return originalFetch(fallbackUrl, init);
+    }
+  }
+  return originalFetch(input, init);
+};
 
 const cleanForMatch = (s: any) =>
   String(s || "")
@@ -1819,7 +1841,7 @@ const Dashboard = ({
       console.error('Failed to save access rules', e);
     }
     try {
-      const resp = await fetch(SCRIPT_URL, {
+      const resp = await customFetch(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({
@@ -2323,7 +2345,7 @@ const Dashboard = ({
       return;
     }
     setIsEmployeesLoading(true);
-    fetch(`${SCRIPT_URL}?action=getEmployees`)
+    customFetch(`${SCRIPT_URL}?action=getEmployees`)
       .then((res) => res.json())
       .then((res) => {
         if (
@@ -2596,10 +2618,10 @@ const Dashboard = ({
       } else {
         try {
           const [resp, respDr] = await Promise.all([
-            fetch(
+            customFetch(
               `${SCRIPT_URL}?action=getWorkingData&user=${encodeURIComponent(userData.name)}`,
             ),
-            fetch(
+            customFetch(
               `${SCRIPT_URL}?action=getDrSalesData&user=${encodeURIComponent(userData.name)}`,
             ),
           ]);
@@ -2768,7 +2790,7 @@ const Dashboard = ({
         let fetchedKiosks = [];
         let success = false;
         try {
-          const resp = await fetch(
+          const resp = await customFetch(
             `${SCRIPT_URL}?action=getChannels&user=${encodeURIComponent(userData.name)}`,
           );
           const res = await resp.json();
@@ -2832,7 +2854,7 @@ const Dashboard = ({
       setIsSyncing(true);
 
       try {
-        const resp = await fetch(
+        const resp = await customFetch(
           `${SCRIPT_URL}?action=getInitialData&user=${encodeURIComponent(userData.name)}`,
         );
         const res = await resp.json();
@@ -2950,17 +2972,17 @@ const Dashboard = ({
     const loadIndividualDataFallback = async () => {
       try {
         const [respEmp, respChan, respWork, respDr, respAccess] = await Promise.all([
-          fetch(`${SCRIPT_URL}?action=getEmployees`),
-          fetch(
+          customFetch(`${SCRIPT_URL}?action=getEmployees`),
+          customFetch(
             `${SCRIPT_URL}?action=getChannels&user=${encodeURIComponent(userData.name)}`,
           ),
-          fetch(
+          customFetch(
             `${SCRIPT_URL}?action=getWorkingData&user=${encodeURIComponent(userData.name)}`,
           ),
-          fetch(
+          customFetch(
             `${SCRIPT_URL}?action=getDrSalesData&user=${encodeURIComponent(userData.name)}`,
           ),
-          fetch(`${SCRIPT_URL}?action=getAccessRules`),
+          customFetch(`${SCRIPT_URL}?action=getAccessRules`),
         ]);
         const [resEmp, resChan, resWork, resDr, resAccess] = await Promise.all([
           respEmp.json(),
@@ -3061,7 +3083,7 @@ const Dashboard = ({
     const checkLot = async () => {
       setIsLotChecking(true);
       try {
-        const resp = await fetch(
+        const resp = await customFetch(
           `${SCRIPT_URL}?action=getLotInfo&lot=${encodeURIComponent(lotNo)}`,
         );
         const res = await resp.json();
@@ -3312,7 +3334,7 @@ const Dashboard = ({
     setIsFetchingData(true);
     setIsSyncing(true);
     try {
-      const resp = await fetch(SCRIPT_URL, {
+      const resp = await customFetch(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({
@@ -3344,7 +3366,7 @@ const Dashboard = ({
   const handleConsolidateDatabase = async () => {
     setIsConsolidatingDb(true);
     try {
-      const resp = await fetch(SCRIPT_URL, {
+      const resp = await customFetch(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({
@@ -3396,7 +3418,7 @@ const Dashboard = ({
         province: userData?.province || "",
       };
 
-      const resp = await fetch(SCRIPT_URL, {
+      const resp = await customFetch(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify(payload),
@@ -3464,7 +3486,7 @@ const Dashboard = ({
     setIsActionLoading(true);
     try {
       console.log("[Delete] Sending request to:", SCRIPT_URL);
-      const resp = await fetch(SCRIPT_URL, {
+      const resp = await customFetch(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({
@@ -3515,7 +3537,7 @@ const Dashboard = ({
     if (!isAdd && !originalName) return;
     setIsActionLoading(true);
     try {
-      const resp = await fetch(SCRIPT_URL, {
+      const resp = await customFetch(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({
@@ -3566,7 +3588,7 @@ const Dashboard = ({
     if (!employeeDeleteModal.item?.name) return;
     setIsActionLoading(true);
     try {
-      const resp = await fetch(SCRIPT_URL, {
+      const resp = await customFetch(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({
@@ -12311,7 +12333,7 @@ export default function App() {
   const handleLogin = async (name, password) => {
     // Attempt to real login using Apps Script endpoint
     try {
-      const resp = await fetch(
+      const resp = await customFetch(
         `${SCRIPT_URL}?action=getUserProfile&user=${encodeURIComponent(name)}`,
       );
       const res = await resp.json();
@@ -12340,7 +12362,7 @@ export default function App() {
 
         // Fetch and set actual access rules on login to prevent flashing of unauthorized tabs
         try {
-          const accessResp = await fetch(`${SCRIPT_URL}?action=getAccessRules`);
+          const accessResp = await customFetch(`${SCRIPT_URL}?action=getAccessRules`);
           const accessRes = await accessResp.json();
           if (accessRes.status === "success" && accessRes.data && Object.keys(accessRes.data).length > 0) {
             setAccessRules(accessRes.data);
