@@ -30,26 +30,55 @@ import {
 
 
 const ORIGINAL_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxUUPKhsEo-LencnYjex3gOhVl7w2tS154VCICVbqGfFSBLAwzv0P7XOu9oMTE1jTUg1g/exec";
-const SCRIPT_URL = (import.meta as any).env.VITE_SCRIPT_URL || "/api";
+const SCRIPT_URL = "/api";
 
 const customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const originalFetch = window.fetch;
   let url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
-  if (url && url.includes(SCRIPT_URL) && SCRIPT_URL !== ORIGINAL_SCRIPT_URL) {
-    try {
-      const res = await originalFetch(input, init);
-      const contentType = res.headers.get("content-type");
-      if (!res.ok || (contentType && contentType.indexOf("application/json") === -1)) {
-         throw new Error("Invalid API response, falling back");
-      }
-      return res;
-    } catch (err) {
-      console.warn("Primary API failed, falling back to Apps Script:", err);
-      const fallbackUrl = url.replace(SCRIPT_URL, ORIGINAL_SCRIPT_URL);
-      return originalFetch(fallbackUrl, init);
+  
+  // Determine primary target URL (Express Backend /api)
+  let primaryUrl = url;
+  if (!url.startsWith("http")) {
+    if (url.startsWith("?")) {
+      primaryUrl = SCRIPT_URL + url;
+    } else if (!url.startsWith(SCRIPT_URL)) {
+      primaryUrl = SCRIPT_URL + (url.startsWith("/") ? "" : "/") + url;
+    } else {
+      primaryUrl = url;
     }
+  } else if (url.includes(ORIGINAL_SCRIPT_URL)) {
+    // If direct Apps Script URL is passed, route it to local Express /api first
+    primaryUrl = url.replace(ORIGINAL_SCRIPT_URL, SCRIPT_URL);
   }
-  return originalFetch(input, init);
+
+  console.log("[API Request]:", primaryUrl, init);
+
+  try {
+    const res = await originalFetch(primaryUrl, init);
+    const contentType = res.headers.get("content-type");
+    if (!res.ok || (contentType && contentType.indexOf("application/json") === -1)) {
+      throw new Error(`Invalid API response (Status: ${res.status})`);
+    }
+    return res;
+  } catch (err) {
+    console.warn("Primary Express API failed, falling back to Apps Script:", err);
+    
+    // Construct fallback Apps Script URL
+    let fallbackUrl = primaryUrl;
+    if (fallbackUrl.startsWith(SCRIPT_URL)) {
+      fallbackUrl = fallbackUrl.replace(SCRIPT_URL, ORIGINAL_SCRIPT_URL);
+    } else if (!fallbackUrl.startsWith("http")) {
+      fallbackUrl = ORIGINAL_SCRIPT_URL + (fallbackUrl.startsWith("?") ? fallbackUrl : "?" + fallbackUrl);
+    }
+    
+    console.log("[AppsScript Fallback Request]:", fallbackUrl, init);
+    if (typeof input === 'string') {
+      input = fallbackUrl;
+    } else if (input instanceof Request) {
+      input = new Request(fallbackUrl, init);
+    }
+    return originalFetch(input, init);
+  }
 };
 
 const cleanForMatch = (s: any) =>
@@ -1778,6 +1807,75 @@ const Dashboard = ({
     item: any | null;
   }>({ isOpen: false, item: null });
   const [employeesRefreshKey, setEmployeesRefreshKey] = useState(0);
+
+  // State for Temporary Manual Partner Input Page
+  const [tempPartnerName, setTempPartnerName] = useState("");
+  const [tempPartnerCategory, setTempPartnerCategory] = useState("R1");
+  const [tempPartnerPic, setTempPartnerPic] = useState("");
+  const [tempPartnerProvince, setTempPartnerProvince] = useState("");
+  const [isSubmittingTempPartner, setIsSubmittingTempPartner] = useState(false);
+  const [tempPartnerError, setTempPartnerError] = useState("");
+  const [tempPartnerSuccess, setTempPartnerSuccess] = useState("");
+
+  const handleAddTempPartner = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tempPartnerName.trim()) {
+      setTempPartnerError("Nama Partner harus diisi!");
+      return;
+    }
+    setIsSubmittingTempPartner(true);
+    setTempPartnerError("");
+    setTempPartnerSuccess("");
+
+    try {
+      const payload = {
+        action: "addPartner",
+        id: "partner_" + Date.now(),
+        pic: tempPartnerPic || "",
+        name: tempPartnerName.trim(),
+        category: tempPartnerCategory,
+        province: tempPartnerProvince.trim(),
+        user: userData.name,
+        group: userData?.group || "",
+      };
+
+      const resp = await customFetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(payload),
+      });
+
+      const contentType = resp.headers.get("content-type");
+      if (!resp.ok || !contentType || !contentType.includes("application/json")) {
+        throw new Error("Respon server tidak valid.");
+      }
+
+      const res = await resp.json();
+      if (res.status === "success") {
+        setTempPartnerSuccess(`Partner "${tempPartnerName}" berhasil ditambahkan ke sheet 'channel'!`);
+        setTempPartnerName("");
+        setTempPartnerProvince("");
+        // Refresh partner list
+        const newPartner = {
+          id: res.id || payload.id,
+          name: payload.name,
+          category: payload.category,
+          pic: payload.pic,
+          upline: "",
+          area: payload.province || "",
+          group: payload.group || "",
+        };
+        setKiosks((prev: any) => [...prev, newPartner]);
+      } else {
+        throw new Error(res.message || "Gagal menambahkan partner.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setTempPartnerError(err.message || "Terjadi kesalahan saat menyambung ke server.");
+    } finally {
+      setIsSubmittingTempPartner(false);
+    }
+  };
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>(
     {},
   );
@@ -11872,6 +11970,186 @@ const Dashboard = ({
           })()}
         </div>
       )}
+
+      {activeTab === "partner_temp" && (
+        <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+          <div className="mb-6 ml-1 flex flex-col gap-1">
+            <h1 className="text-xl font-bold text-[#181a2c] tracking-tight">
+              Input Partner Baru <span className="text-primary font-bold">(Temporary)</span>
+            </h1>
+            <p className="text-[#8E94B7] text-xs font-semibold">
+              Koneksi langsung ke Sheet <strong className="text-primary">channel</strong> untuk menambahkan atau memperbarui data partner manual.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Form Column */}
+            <div className="lg:col-span-1 bg-white rounded-[24px] shadow-[0_12px_32px_rgba(21,75,226,0.03)] border border-[#154be2]/5 p-6 h-fit">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-[#181a2c] mb-4 pb-2 border-b border-[#f1f5f9] flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] text-primary">edit_note</span>
+                Formulir Partner Baru
+              </h2>
+
+              {tempPartnerError && (
+                <div className="mb-4 bg-red-50 border border-red-200 text-red-800 rounded-2xl px-4 py-3 text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+                  <span className="material-symbols-outlined text-red-600">error</span>
+                  {tempPartnerError}
+                </div>
+              )}
+
+              {tempPartnerSuccess && (
+                <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl px-4 py-3 text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+                  <span className="material-symbols-outlined text-emerald-600">check_circle</span>
+                  {tempPartnerSuccess}
+                </div>
+              )}
+
+              <form onSubmit={handleAddTempPartner} className="space-y-4">
+                <div>
+                  <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
+                    Nama Partner (Channel) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={tempPartnerName}
+                    onChange={(e) => setTempPartnerName(e.target.value)}
+                    disabled={isSubmittingTempPartner}
+                    placeholder="Contoh: Toko Berkah Tani"
+                    className="w-full h-11 bg-[#fbfaff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#181a2c] outline-none focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-gray-400 disabled:opacity-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
+                    Kategori Partner
+                  </label>
+                  <select
+                    value={tempPartnerCategory}
+                    onChange={(e) => setTempPartnerCategory(e.target.value)}
+                    disabled={isSubmittingTempPartner}
+                    className="w-full h-11 bg-[#fbfaff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#181a2c] outline-none focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50"
+                  >
+                    {allCategories.map((cat: string) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
+                    PIC (Employee)
+                  </label>
+                  <select
+                    value={tempPartnerPic}
+                    onChange={(e) => setTempPartnerPic(e.target.value)}
+                    disabled={isSubmittingTempPartner}
+                    className="w-full h-11 bg-[#fbfaff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#181a2c] outline-none focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50"
+                  >
+                    <option value="">-- Pilih PIC --</option>
+                    {employees.map((emp: any) => (
+                      <option key={emp.name} value={emp.name}>
+                        {emp.name} ({emp.position || "Staff"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
+                    Provinsi / Wilayah (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={tempPartnerProvince}
+                    onChange={(e) => setTempPartnerProvince(e.target.value)}
+                    disabled={isSubmittingTempPartner}
+                    placeholder="Contoh: JAWA BARAT"
+                    className="w-full h-11 bg-[#fbfaff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#181a2c] outline-none focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-gray-400 disabled:opacity-50"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmittingTempPartner || !tempPartnerName.trim()}
+                  className={`w-full h-11 rounded-full font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.98] ${
+                    isSubmittingTempPartner || !tempPartnerName.trim()
+                      ? "bg-[#e0e0fa] text-[#8E94B7] cursor-not-allowed"
+                      : "bg-[#181a2c] text-white hover:bg-[#252841] shadow-[0_4px_14px_rgba(24,26,44,0.15)]"
+                  }`}
+                >
+                  {isSubmittingTempPartner ? (
+                    <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                  )}
+                  {isSubmittingTempPartner ? "Menyimpan..." : "Simpan Partner"}
+                </button>
+              </form>
+            </div>
+
+            {/* List Column */}
+            <div className="lg:col-span-2 bg-white rounded-[24px] shadow-[0_12px_32px_rgba(21,75,226,0.03)] border border-[#154be2]/5 overflow-hidden flex flex-col justify-between">
+              <div>
+                <div className="p-6 border-b border-[#f1f5f9] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-[#181a2c] flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px] text-primary">contacts</span>
+                    Daftar Partner Saat Ini ({kiosks.length})
+                  </h2>
+                </div>
+
+                <div className="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-[#fbfaff] sticky top-0 z-10 shadow-sm">
+                        <th className="px-5 py-3 text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider border-b border-[#f1f5f9]">Nama Partner</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider border-b border-[#f1f5f9]">Kategori</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider border-b border-[#f1f5f9]">PIC</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider border-b border-[#f1f5f9]">Wilayah</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#f1f5f9]">
+                      {kiosks.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="px-5 py-8 text-center text-xs text-[#8E94B7] font-semibold">
+                            Tidak ada data partner ditemukan.
+                          </td>
+                        </tr>
+                      ) : (
+                        kiosks.slice().reverse().map((kiosk: any) => (
+                          <tr key={kiosk.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-5 py-3.5 text-xs font-bold text-[#181a2c]">
+                              {kiosk.name}
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <span className="text-[10px] font-bold bg-[#154be2]/10 text-primary px-2.5 py-1 rounded-full border border-[#154be2]/5">
+                                {kiosk.category || "N/A"}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3.5 text-xs text-gray-600 font-semibold">
+                              {kiosk.pic || "-"}
+                            </td>
+                            <td className="px-5 py-3.5 text-xs text-gray-500 font-semibold">
+                              {kiosk.area || "-"}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-[#f1f5f9] bg-slate-50/50 text-[10px] text-[#8E94B7] font-black uppercase tracking-wider text-right">
+                Menampilkan data partner diurutkan dari yang terbaru ditambahkan.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <LogoutConfirmModal
         isOpen={isLogoutModalOpen}
         onClose={() => setIsLogoutModalOpen(false)}
@@ -12578,6 +12856,22 @@ export default function App() {
             </button>
           )}
 
+          {showPartnerTab && (
+            <button
+              onClick={() => setActiveTab("partner_temp")}
+              className={`flex items-center justify-center lg:justify-start gap-3 h-13 rounded-xl transition-all ${activeTab === "partner_temp" ? "bg-[#154be2]/15 text-[#154be2] shadow-[0_4px_12px_rgba(21,75,226,0.12)] ring-1 ring-[#154be2]/15 font-bold" : "text-[#8E94B7] hover:bg-white/40 hover:text-[#181a2c]"}`}
+            >
+              <span
+                className={`material-symbols-outlined ml-0 lg:ml-4 ${activeTab === "partner_temp" ? "font-normal" : ""}`}
+              >
+                person_add
+              </span>
+              <span className={`font-semibold text-xs hidden ${isSidebarExpanded ? "lg:block" : ""}`}>
+                Partner Input (Temp)
+              </span>
+            </button>
+          )}
+
           {showAccessTab && (
             <button
               onClick={() => setActiveTab("access")}
@@ -12751,6 +13045,26 @@ export default function App() {
                 </span>
                 <span className="text-[7.5px] font-bold uppercase tracking-wider leading-none mt-0.5">
                   Temp
+                </span>
+              </button>
+            )}
+
+            {showPartnerTab && (
+              <button
+                onClick={() => setActiveTab("partner_temp")}
+                className={`flex flex-col items-center justify-center h-11 px-2.5 rounded-xl transition-all duration-200 select-none ${
+                  activeTab === "partner_temp"
+                    ? "bg-[#154be2]/12 text-[#154be2] font-extrabold"
+                    : "text-[#8E94B7] hover:text-[#181a2c]"
+                }`}
+              >
+                <span
+                  className={`material-symbols-outlined text-[19px] leading-tight ${activeTab === "partner_temp" ? "font-semibold" : ""}`}
+                >
+                  person_add
+                </span>
+                <span className="text-[7.5px] font-bold uppercase tracking-wider leading-none mt-0.5">
+                  P. Temp
                 </span>
               </button>
             )}
