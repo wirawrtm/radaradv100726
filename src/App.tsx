@@ -83,8 +83,8 @@ const customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
 
 const cleanForMatch = (s: any) =>
   String(s || "")
-    .replace(/[\s_\-\/]/g, "")
-    .toLowerCase();
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 
 const matchNames = (name1: any, name2: any) => {
   const c1 = cleanForMatch(name1);

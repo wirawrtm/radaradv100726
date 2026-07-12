@@ -135,7 +135,7 @@ function handleAddPartner(body) {
   for (var i = 0; i < headers.length; i++) {
     var h = String(headers[i]).trim();
     if (/pic|user|nama|analyst|solution/i.test(h)) idxPic = i;
-    if (/channel|kiosk|nama toko|toko|name/i.test(h)) idxChannel = i;
+    if (/channel|kiosk|nama toko|toko|name|distributor|partner|mitra/i.test(h)) idxChannel = i;
     if (/kategori|category|klasifikasi|^cat$/i.test(h)) idxCat = i;
     if (/provinsi|province/i.test(h)) idxProvince = i;
     if (/^area$/i.test(h)) idxArea = i;
@@ -261,7 +261,7 @@ function handleUpdatePartner(body) {
   for (var i = 0; i < headers.length; i++) {
     var h = String(headers[i]).trim();
     if (/pic|user|nama|analyst|solution/i.test(h)) idxPic = i;
-    if (/channel|kiosk|nama toko|toko|name/i.test(h)) idxChannel = i;
+    if (/channel|kiosk|nama toko|toko|name|distributor|partner|mitra/i.test(h)) idxChannel = i;
     if (/kategori|category|klasifikasi|^cat$/i.test(h)) idxCat = i;
     if (/provinsi|province/i.test(h)) idxProvince = i;
     if (/^area$/i.test(h)) idxArea = i;
@@ -373,7 +373,7 @@ function handleDeletePartner(body) {
   var idxChannel = -1;
   for (var i = 0; i < headers.length; i++) {
     var h = String(headers[i]).trim();
-    if (/channel|kiosk|nama toko|toko|name/i.test(h)) idxChannel = i;
+    if (/channel|kiosk|nama toko|toko|name|distributor|partner|mitra/i.test(h)) idxChannel = i;
   }
   
   if (idxChannel === -1) {
@@ -687,7 +687,7 @@ function handleGetChannels(user) {
   var headers = data[0];
   var idx = {
     pic: headers.findIndex(function(h) { return /pic|user|nama|analyst|solution/i.test(String(h).trim()); }),
-    channel: headers.findIndex(function(h) { return /channel|kiosk|nama toko|toko|name/i.test(String(h).trim()); }),
+    channel: headers.findIndex(function(h) { return /channel|kiosk|nama toko|toko|name|distributor|partner|mitra/i.test(String(h).trim()); }),
     cat: headers.findIndex(function(h) { return /kategori|category|klasifikasi|^cat$/i.test(String(h).trim()); }),
     upline: headers.findIndex(function(h) { return /upline|spv|supervisor/i.test(String(h).trim()); }),
     area: headers.findIndex(function(h) { return /area|provinsi|province|wilayah/i.test(String(h).trim()); }),
@@ -791,7 +791,7 @@ function handleGetDrSalesData(user) {
   var hIdx = {
     qty: headers.findIndex(function(h) { return /qty|quantity/i.test(String(h).trim()); }),
     type: headers.findIndex(function(h) { return /order type/i.test(String(h).trim()); }),
-    channel: headers.findIndex(function(h) { return /channel|kiosk|nama toko|toko|name/i.test(String(h).trim()); }),
+    channel: headers.findIndex(function(h) { return /channel|kiosk|nama toko|toko|name|distributor|partner|mitra/i.test(String(h).trim()); }),
     lot: headers.findIndex(function(h) { return /lot/i.test(String(h).trim()); }),
     desc: headers.findIndex(function(h) { return /material.*desc|description/i.test(String(h).trim()); }),
     dr: headers.findIndex(function(h) { return /dr date|shipping date/i.test(String(h).trim()); }),
