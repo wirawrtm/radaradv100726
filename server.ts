@@ -10,6 +10,17 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
+// Enable CORS for all requests to support external clients (like Vercel deployments)
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 const LOCAL_DB_PATH = path.join(process.cwd(), "local_sheets_db.json");
 
 function initLocalDb() {
@@ -2597,8 +2608,13 @@ app.all("/api", async (req, res) => {
 
     return res.json(result);
   } catch (error: any) {
-    console.error(`[API Error] Error processing action ${action}:`, error);
-    return res.status(500).json({ status: "error", message: error.toString() });
+    const errorStr = error.toString();
+    if (errorStr.includes("fallback to AppScript") || errorStr.includes("API not configured")) {
+      console.warn(`[API Proxy Fallback] Action: ${action}, Error: ${errorStr}`);
+      return res.status(503).json({ status: "error", message: "API not configured, fallback to Apps Script" });
+    }
+    console.log(`[API Validation/Execution Error] Action: ${action}, Error: ${errorStr}`);
+    return res.json({ status: "error", message: error.message || errorStr });
   }
 });
 
