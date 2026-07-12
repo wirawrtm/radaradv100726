@@ -888,8 +888,8 @@ const PartnerEditModal = ({
       setNewPic(matchedPic);
       setPartnerName(String(item.name || "").trim());
       setCategory(String(item.category || "").trim());
-      setProvince(userProv);
-      setGroup(userGroup);
+      setProvince(String(item.province || "").trim() || userProv);
+      setGroup(String(item.group || "").trim() || userGroup);
     } else {
       setNewPic("");
       setPartnerName("");
@@ -3564,12 +3564,12 @@ const Dashboard = ({
   };
 
   const handleDeletePartnerConfirm = async () => {
-    if (!partnerDeleteModal.item?.id && !partnerDeleteModal.item?.name) {
-      alert("Data partner tidak valid untuk dihapus (ID & Nama kosong)");
+    if (!partnerDeleteModal.item?.name) {
+      alert("Data partner tidak valid untuk dihapus (Nama kosong)");
       return;
     }
-    const targetId = partnerDeleteModal.item.id;
     const targetName = partnerDeleteModal.item.name;
+    const targetPic = partnerDeleteModal.item.pic || "";
     setIsActionLoading(true);
     try {
       console.log("[Delete] Sending request to:", SCRIPT_URL);
@@ -3578,8 +3578,8 @@ const Dashboard = ({
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({
           action: "deletePartner",
-          id: targetId,
           name: targetName,
+          pic: targetPic,
           user: userData.name,
         }),
       });
@@ -3596,10 +3596,10 @@ const Dashboard = ({
         setKiosks((prev) =>
           prev.filter(
             (k) =>
-              String(k.id) !== String(targetId) &&
-              (!targetName ||
-                String(k.name).trim().toLowerCase() !==
-                  String(targetName).trim().toLowerCase()),
+              !(
+                String(k.name).trim().toLowerCase() === String(targetName).trim().toLowerCase() &&
+                String(k.pic).trim().toLowerCase() === String(targetPic).trim().toLowerCase()
+              )
           ),
         );
         setPartnerDeleteModal({ isOpen: false, item: null });

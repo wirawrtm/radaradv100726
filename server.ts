@@ -2402,41 +2402,16 @@ async function handleDeletePartner(body: any) {
   if (idx.channel === -1) throw new Error("Kolom nama partner tidak ditemukan di sheet");
 
   let rowIndex = -1;
-  const rowNum = Number(body.id);
 
-  // 1. Check if rowNum is within bounds and the name actually matches using cleanForMatch
-  if (!isNaN(rowNum) && rowNum > 1 && rowNum <= data.length) {
-    const potentialRow = data[rowNum - 1];
-    if (potentialRow && idx.channel !== -1) {
-      const currentClean = cleanForMatch(potentialRow[idx.channel]);
-      const cleanOrig = body.originalName ? cleanForMatch(body.originalName) : "";
-      const cleanName = body.name ? cleanForMatch(body.name) : "";
-      
-      if (cleanOrig && currentClean === cleanOrig) {
-        rowIndex = rowNum - 1;
-      } else if (cleanName && currentClean === cleanName) {
-        rowIndex = rowNum - 1;
-      }
-    }
-  }
-
-  // 2. If row number didn't match, search by originalName across all rows using cleanForMatch
-  if (rowIndex === -1 && body.originalName && idx.channel !== -1) {
-    const targetClean = cleanForMatch(body.originalName);
+  if (idx.channel !== -1 && idx.pic !== -1 && body.name) {
+    const targetChannelClean = cleanForMatch(body.name);
+    const targetPicClean = cleanForMatch(body.pic || "");
+    
     rowIndex = data.findIndex(
       (row, idxVal) =>
         idxVal > 0 &&
-        cleanForMatch(row[idx.channel]) === targetClean,
-    );
-  }
-
-  // 3. Fallback to searching by name across all rows using cleanForMatch
-  if (rowIndex === -1 && body.name && idx.channel !== -1) {
-    const targetClean = cleanForMatch(body.name);
-    rowIndex = data.findIndex(
-      (row, idxVal) =>
-        idxVal > 0 &&
-        cleanForMatch(row[idx.channel]) === targetClean,
+        cleanForMatch(row[idx.channel]) === targetChannelClean &&
+        cleanForMatch(row[idx.pic]) === targetPicClean,
     );
   }
 
@@ -2452,7 +2427,7 @@ async function handleDeletePartner(body: any) {
   return { 
     status: "error", 
     message: rowIndex === -1 
-      ? `Data partner "${body.name || body.id}" tidak ditemukan` 
+      ? `Data partner "${body.name}" dengan PIC "${body.pic || ""}" tidak ditemukan` 
       : "Indeks baris tidak valid untuk penghapusan"
   };
 }

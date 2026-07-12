@@ -131,6 +131,7 @@ function handleAddPartner(body) {
   var idxCat = -1;
   var idxProvince = -1;
   var idxArea = -1;
+  var idxGroup = -1;
   
   for (var i = 0; i < headers.length; i++) {
     var h = String(headers[i]).trim();
@@ -139,6 +140,7 @@ function handleAddPartner(body) {
     if (/kategori|category|klasifikasi|^cat$/i.test(h)) idxCat = i;
     if (/provinsi|province/i.test(h)) idxProvince = i;
     if (/^area$/i.test(h)) idxArea = i;
+    if (/group|tim|divisi|division/i.test(h)) idxGroup = i;
   }
   
   if (idxChannel === -1) {
@@ -189,6 +191,9 @@ function handleAddPartner(body) {
       if (idxCat !== -1 && body.category !== undefined && body.category !== "") {
         sheet.getRange(existingIndex + 1, idxCat + 1).setValue(body.category);
       }
+      if (idxGroup !== -1 && body.group !== undefined && body.group !== "") {
+        sheet.getRange(existingIndex + 1, idxGroup + 1).setValue(body.group);
+      }
       
       return {
         status: "success",
@@ -228,6 +233,7 @@ function handleAddPartner(body) {
   if (idxPic !== -1) newRow[idxPic] = body.pic || "";
   if (idxProvince !== -1) newRow[idxProvince] = userProvince || "";
   if (idxArea !== -1) newRow[idxArea] = userArea || "";
+  if (idxGroup !== -1) newRow[idxGroup] = body.group || "";
   
   sheet.appendRow(newRow);
   
@@ -257,6 +263,7 @@ function handleUpdatePartner(body) {
   var idxCat = -1;
   var idxProvince = -1;
   var idxArea = -1;
+  var idxGroup = -1;
   
   for (var i = 0; i < headers.length; i++) {
     var h = String(headers[i]).trim();
@@ -265,6 +272,7 @@ function handleUpdatePartner(body) {
     if (/kategori|category|klasifikasi|^cat$/i.test(h)) idxCat = i;
     if (/provinsi|province/i.test(h)) idxProvince = i;
     if (/^area$/i.test(h)) idxArea = i;
+    if (/group|tim|divisi|division/i.test(h)) idxGroup = i;
   }
   
   var rowIndex = -1;
@@ -346,6 +354,9 @@ function handleUpdatePartner(body) {
     if (idxCat !== -1 && body.category !== undefined && body.category !== "") {
       sheet.getRange(rowIndex + 1, idxCat + 1).setValue(body.category);
     }
+    if (idxGroup !== -1 && body.group !== undefined && body.group !== "") {
+      sheet.getRange(rowIndex + 1, idxGroup + 1).setValue(body.group);
+    }
     
     return { 
       status: "success", 
@@ -390,40 +401,14 @@ function handleDeletePartner(body) {
   }
   
   var rowIndex = -1;
-  var rowNum = Number(body.id);
   
-  // 1. Validasi via Row Number (ID baris)
-  if (!isNaN(rowNum) && rowNum > 1 && rowNum <= data.length) {
-    var potentialRow = data[rowNum - 1];
-    if (potentialRow && idxChannel !== -1) {
-      var currentClean = cleanForMatch(potentialRow[idxChannel]);
-      var cleanOrig = body.originalName ? cleanForMatch(body.originalName) : "";
-      var cleanName = body.name ? cleanForMatch(body.name) : "";
-      
-      if (cleanOrig && currentClean === cleanOrig) {
-        rowIndex = rowNum - 1;
-      } else if (cleanName && currentClean === cleanName) {
-        rowIndex = rowNum - 1;
-      }
-    }
-  }
-  
-  // 2. Fallback pencarian berdasarkan nama asli (originalName)
-  if (rowIndex === -1 && body.originalName && idxChannel !== -1) {
-    var targetClean = cleanForMatch(body.originalName);
+  if (idxChannel !== -1 && idxPic !== -1 && body.name) {
+    var targetChannelClean = cleanForMatch(body.name);
+    var targetPicClean = cleanForMatch(body.pic || "");
+    
     for (var r = 1; r < data.length; r++) {
-      if (cleanForMatch(data[r][idxChannel]) === targetClean) {
-        rowIndex = r;
-        break;
-      }
-    }
-  }
-  
-  // 3. Fallback pencarian berdasarkan nama baru (name)
-  if (rowIndex === -1 && body.name && idxChannel !== -1) {
-    var targetClean = cleanForMatch(body.name);
-    for (var r = 1; r < data.length; r++) {
-      if (cleanForMatch(data[r][idxChannel]) === targetClean) {
+      if (cleanForMatch(data[r][idxChannel]) === targetChannelClean &&
+          cleanForMatch(data[r][idxPic]) === targetPicClean) {
         rowIndex = r;
         break;
       }
@@ -442,7 +427,7 @@ function handleDeletePartner(body) {
   return {
     status: "error",
     message: rowIndex === -1
-      ? "Data partner '" + (body.name || body.id) + "' tidak ditemukan."
+      ? "Data partner '" + (body.name || "") + "' dengan PIC '" + (body.pic || "") + "' tidak ditemukan."
       : "Indeks baris tidak valid untuk penghapusan."
   };
 }
