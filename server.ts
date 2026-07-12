@@ -529,15 +529,11 @@ async function appendSheetRow(
 
   const sheets = getSheetsClient();
   if (!sheets) return false;
-  invalidateCache(sheetName);
   try {
-    await sheets.spreadsheets.values.append({
-      spreadsheetId,
-      range: `${sheetName}!A1`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: [sanitizedRow] },
-    });
-    return true;
+    const currentValues = await getSheetValues(sheetName);
+    if (!currentValues) return false;
+    currentValues.push(sanitizedRow);
+    return await updateSheetValues(sheetName, currentValues);
   } catch (e) {
     console.error(`Error appending to sheet ${sheetName}:`, e);
     throw new Error(`Failed to append to sheet ${sheetName}`);
