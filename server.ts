@@ -2402,16 +2402,27 @@ async function handleDeletePartner(body: any) {
   if (idx.channel === -1) throw new Error("Kolom nama partner tidak ditemukan di sheet");
 
   let rowIndex = -1;
+  const rowNum = Number(body.id);
 
-  if (idx.channel !== -1 && idx.pic !== -1 && body.name) {
-    const targetChannelClean = cleanForMatch(body.name);
-    const targetPicClean = cleanForMatch(body.pic || "");
-    
+  // 1. Check if rowNum is within bounds and the name actually matches using cleanForMatch
+  if (!isNaN(rowNum) && rowNum > 1 && rowNum <= data.length) {
+    const potentialRow = data[rowNum - 1];
+    if (potentialRow && idx.channel !== -1 && body.name) {
+      const currentClean = cleanForMatch(potentialRow[idx.channel]);
+      const cleanName = cleanForMatch(body.name);
+      if (currentClean === cleanName) {
+        rowIndex = rowNum - 1;
+      }
+    }
+  }
+
+  // 2. Fallback to searching by name across all rows using cleanForMatch
+  if (rowIndex === -1 && body.name && idx.channel !== -1) {
+    const targetClean = cleanForMatch(body.name);
     rowIndex = data.findIndex(
       (row, idxVal) =>
         idxVal > 0 &&
-        cleanForMatch(row[idx.channel]) === targetChannelClean &&
-        cleanForMatch(row[idx.pic]) === targetPicClean,
+        cleanForMatch(row[idx.channel]) === targetClean,
     );
   }
 
@@ -2427,7 +2438,7 @@ async function handleDeletePartner(body: any) {
   return { 
     status: "error", 
     message: rowIndex === -1 
-      ? `Data partner "${body.name}" dengan PIC "${body.pic || ""}" tidak ditemukan` 
+      ? `Data partner "${body.name}" tidak ditemukan` 
       : "Indeks baris tidak valid untuk penghapusan"
   };
 }

@@ -411,14 +411,25 @@ function handleDeletePartner(body) {
   }
   
   var rowIndex = -1;
+  var rowNum = Number(body.id);
   
-  if (idxChannel !== -1 && idxPic !== -1 && body.name) {
-    var targetChannelClean = cleanForMatch(body.name);
-    var targetPicClean = cleanForMatch(body.pic || "");
-    
+  // 1. Check if rowNum is within bounds and the name actually matches using cleanForMatch
+  if (!isNaN(rowNum) && rowNum > 1 && rowNum <= data.length) {
+    var potentialRow = data[rowNum - 1];
+    if (potentialRow && idxChannel !== -1 && body.name) {
+      var currentClean = cleanForMatch(potentialRow[idxChannel]);
+      var cleanName = cleanForMatch(body.name);
+      if (currentClean === cleanName) {
+        rowIndex = rowNum - 1;
+      }
+    }
+  }
+  
+  // 2. Fallback to searching by name across all rows using cleanForMatch
+  if (rowIndex === -1 && body.name && idxChannel !== -1) {
+    var targetClean = cleanForMatch(body.name);
     for (var r = 1; r < data.length; r++) {
-      if (cleanForMatch(data[r][idxChannel]) === targetChannelClean &&
-          cleanForMatch(data[r][idxPic]) === targetPicClean) {
+      if (cleanForMatch(data[r][idxChannel]) === targetClean) {
         rowIndex = r;
         break;
       }
@@ -431,13 +442,13 @@ function handleDeletePartner(body) {
     return { 
       status: "success", 
       message: "Partner '" + deletedName + "' berhasil dihapus!" 
-    };
+      };
   }
   
   return {
     status: "error",
     message: rowIndex === -1
-      ? "Data partner '" + (body.name || "") + "' dengan PIC '" + (body.pic || "") + "' tidak ditemukan."
+      ? "Data partner '" + (body.name || "") + "' tidak ditemukan."
       : "Indeks baris tidak valid untuk penghapusan."
   };
 }
@@ -2061,6 +2072,42 @@ function handleSaveAccessRules(body) {
 
     updateSheetValues("access", rows);
     return { status: "success" };
+  } catch (error) {
+    return { status: "error", message: error.toString() };
+  }
+}
+
+/**
+ * Handle Employee deletion in Apps Script
+ */
+function handleDeleteEmployee(body) {
+  try {
+    var data = getSheetValues("employee");
+    if (!data) return { status: "error", message: "Sheet 'employee' tidak ditemukan" };
+    var headers = data[0];
+    var nameIdx = headers.findIndex(function(h) {
+      return /nama|name|pic/i.test(String(h).trim());
+    });
+    if (nameIdx === -1) return { status: "error", message: "Kolom nama employee tidak ditemukan" };
+
+    var targetClean = cleanForMatch(body.name);
+    var targetRow = -1;
+    for (var i = 1; i < data.length; i++) {
+      if (cleanForMatch(data[i][nameIdx]) === targetClean) {
+        targetRow = i + 1;
+        break;
+      }
+    }
+
+    if (targetRow !== -1) {
+      var deletedName = data[targetRow - 1][nameIdx];
+      data.splice(targetRow - 1, 1);
+      var success = updateSheetValues("employee", data);
+      if (!success) return { status: "error", message: "Gagal menyimpan perubahan ke Google Sheets" };
+      return { status: "success", message: "Employee " + deletedName + " berhasil dihapus" };
+    } else {
+      return { status: "error", message: "Employee dengan nama \"" + body.name + "\" tidak ditemukan" };
+    }
   } catch (error) {
     return { status: "error", message: error.toString() };
   }

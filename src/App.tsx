@@ -3821,6 +3821,7 @@ const Dashboard = ({
     }
     const targetName = partnerDeleteModal.item.name;
     const targetPic = partnerDeleteModal.item.pic || "";
+    const targetId = partnerDeleteModal.item.id;
     setIsActionLoading(true);
     try {
       console.log("[Delete] Sending request to:", SCRIPT_URL);
@@ -3829,6 +3830,7 @@ const Dashboard = ({
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({
           action: "deletePartner",
+          id: targetId,
           name: targetName,
           pic: targetPic,
           user: userData.name,
@@ -3848,8 +3850,8 @@ const Dashboard = ({
           prev.filter(
             (k) =>
               !(
-                String(k.name).trim().toLowerCase() === String(targetName).trim().toLowerCase() &&
-                String(k.pic).trim().toLowerCase() === String(targetPic).trim().toLowerCase()
+                (targetId && String(k.id) === String(targetId)) ||
+                String(k.name).trim().toLowerCase() === String(targetName).trim().toLowerCase()
               )
           ),
         );
