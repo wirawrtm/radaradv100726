@@ -552,38 +552,200 @@ const getDdaOfUser = (
   return result;
 };
 
-const EditModal = ({ isOpen, onClose, item, onSave, isSaving }) => {
+const EditModal = ({ isOpen, onClose, item, onSave, isSaving, allHybrids = [] }) => {
   const [newQty, setNewQty] = useState("");
+  const [lotNo, setLotNo] = useState("");
+  const [hybrid, setHybrid] = useState("");
+  const [crop, setCrop] = useState("Field Corn");
+  const [drDate, setDrDate] = useState("");
+  const [expDate, setExpDate] = useState("");
+
   useEffect(() => {
-    if (item) setNewQty(item.stock);
+    if (item) {
+      setNewQty(item.stock);
+      setLotNo(item.lot || "");
+      setHybrid(item.hybrid || "");
+      setCrop(item.crops || "Field Corn");
+
+      const parseAppDate = (str) => {
+        if (!str || str === "N/A" || str === "-") return "";
+        const parts = str.split("/");
+        if (parts.length === 3) {
+          const day = parts[0];
+          const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+          const monthIdx = months.indexOf(parts[1].toUpperCase());
+          if (monthIdx !== -1) {
+            const year = "20" + parts[2];
+            return `${year}-${String(monthIdx + 1).padStart(2, "0")}-${day.padStart(2, "0")}`;
+          }
+        }
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) {
+          return d.toISOString().split("T")[0];
+        }
+        return "";
+      };
+
+      setDrDate(parseAppDate(item.drDate || item.dr_date || ""));
+      setExpDate(parseAppDate(item.expired || item.expDate || ""));
+    }
   }, [item]);
+
   if (!isOpen) return null;
 
+  const formatDateToAppFormat = (dateStr) => {
+    if (!dateStr) return "N/A";
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return "N/A";
+    const day = String(date.getDate()).padStart(2, "0");
+    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const year = String(date.getFullYear()).substring(2);
+    return `${day}/${months[date.getMonth()]}/${year}`;
+  };
+
+  const calculateAgingInMonths = (startStr) => {
+    if (!startStr) return "-";
+    const start = new Date(startStr);
+    const end = new Date();
+    if (isNaN(start.getTime())) return "-";
+    return String(Math.round((end.getTime() - start.getTime()) / (1000 * 3600 * 24) / 30.416));
+  };
+
+  const handleSaveClick = () => {
+    const updatedFields = {
+      lot: lotNo.trim().toUpperCase(),
+      hybrid: hybrid.trim(),
+      crops: crop,
+      drDate: drDate ? formatDateToAppFormat(drDate) : "N/A",
+      expired: expDate ? formatDateToAppFormat(expDate) : "N/A",
+      aging: drDate ? calculateAgingInMonths(drDate) : "-",
+    };
+    onSave(item.id, newQty, updatedFields);
+  };
+
   return (
-    <div className="fixed inset-0 z-[110] bg-[#181a2c]/50 backdrop-blur-md flex items-center justify-center p-6">
-      <div className="bg-white w-full max-w-[340px] rounded-[24px] p-8 shadow-2xl border border-[#edecff] animate-in fade-in zoom-in-95 duration-200">
-        <div className="size-14 bg-[#edecff] rounded-full flex items-center justify-center text-primary mb-5">
-          <span className="material-symbols-outlined text-[28px]">
+    <div className="fixed inset-0 z-[110] bg-[#181a2c]/50 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white w-full max-w-[380px] rounded-[24px] p-6 shadow-2xl border border-[#edecff] animate-in fade-in zoom-in-95 duration-200 my-auto">
+        <div className="size-12 bg-[#edecff] rounded-full flex items-center justify-center text-primary mb-4">
+          <span className="material-symbols-outlined text-[24px]">
             edit_note
           </span>
         </div>
-        <h2 className="text-xl font-semibold text-[#181a2c] leading-tight mb-1">
-          Edit Quantity
+        <h2 className="text-lg font-semibold text-[#181a2c] leading-tight mb-1">
+          Edit Detail LOT & Stock
         </h2>
-        <p className="text-[11px] text-[#8E94B7] font-semibold uppercase tracking-wider mb-5">
-          Update stock for Batch: {item?.lot}
+        <p className="text-[10px] text-[#8E94B7] font-semibold uppercase tracking-wider mb-5">
+          Sesuaikan Informasi untuk LOT: {item?.lot}
         </p>
-        <div className="relative mb-6">
-          <input
-            type="number"
-            value={newQty}
-            onChange={(e) => setNewQty(e.target.value)}
-            className="w-full h-14 bg-[#fbf8ff] border border-[#edecff] rounded-full px-6 font-semibold text-lg text-primary outline-none focus:border-primary focus:bg-white transition-all shadow-sm"
-          />
-          <span className="absolute right-6 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#8E94B7] uppercase">
-            Kg
-          </span>
+
+        <div className="space-y-4 mb-6">
+          {/* 1. Lot No Input */}
+          <div className="space-y-1">
+            <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
+              Nomor Lot <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={lotNo}
+              onChange={(e) => setLotNo(e.target.value)}
+              className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all uppercase"
+              required
+            />
+          </div>
+
+          {/* 2. Quantity Input */}
+          <div className="space-y-1">
+            <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
+              Quantity (Kg) <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              value={newQty}
+              onChange={(e) => setNewQty(e.target.value)}
+              className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all"
+              required
+            />
+          </div>
+
+          {/* 3. Hybrid / Varietas Selection */}
+          <div className="space-y-1">
+            <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
+              Hybrid / Varietas <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <select
+                value={hybrid}
+                onChange={(e) => setHybrid(e.target.value)}
+                className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all appearance-none pr-10"
+                required
+              >
+                <option value="">-- Pilih Hybrid --</option>
+                {allHybrids.map((hOption) => (
+                  <option key={hOption} value={hOption}>
+                    {hOption}
+                  </option>
+                ))}
+                {!allHybrids.includes(hybrid) && hybrid && (
+                  <option value={hybrid}>{hybrid}</option>
+                )}
+              </select>
+              <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-[#8E94B7] pointer-events-none text-lg">
+                expand_more
+              </span>
+            </div>
+          </div>
+
+          {/* 4. Commodity / Crop Selection */}
+          <div className="space-y-1">
+            <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
+              Komoditas <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <select
+                value={crop}
+                onChange={(e) => setCrop(e.target.value)}
+                className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all appearance-none pr-10"
+                required
+              >
+                {["Field Corn", "Fresh Corn", "Vegetables"].map((cOption) => (
+                  <option key={cOption} value={cOption}>
+                    {cOption}
+                  </option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-[#8E94B7] pointer-events-none text-lg">
+                expand_more
+              </span>
+            </div>
+          </div>
+
+          {/* 5. Dates Grid */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
+                Tgl DR / Shipping
+              </label>
+              <input
+                type="date"
+                value={drDate}
+                onChange={(e) => setDrDate(e.target.value)}
+                className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
+                Expired Date
+              </label>
+              <input
+                type="date"
+                value={expDate}
+                onChange={(e) => setExpDate(e.target.value)}
+                className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all"
+              />
+            </div>
+          </div>
         </div>
+
         <div className="flex gap-3">
           <button
             onClick={onClose}
@@ -592,9 +754,13 @@ const EditModal = ({ isOpen, onClose, item, onSave, isSaving }) => {
             Batal
           </button>
           <button
-            onClick={() => onSave(item.id, newQty)}
-            disabled={isSaving}
-            className="flex-[2] py-3 bg-gradient-to-r from-primary to-cyan-400 text-white rounded-full font-semibold text-xs uppercase tracking-wider shadow-[0_4px_12px_rgba(21,75,226,0.2)] active:scale-[0.98] transition-all"
+            onClick={handleSaveClick}
+            disabled={isSaving || !lotNo || !newQty || !hybrid || !crop}
+            className={`flex-[2] py-3 rounded-full font-semibold text-xs uppercase tracking-wider transition-all ${
+              isSaving || !lotNo || !newQty || !hybrid || !crop
+                ? "bg-[#e0e0fa] text-[#8E94B7] cursor-not-allowed"
+                : "bg-gradient-to-r from-primary to-cyan-400 text-white shadow-[0_4px_12px_rgba(21,75,226,0.2)] active:scale-[0.98]"
+            }`}
           >
             {isSaving ? "Saving..." : "Simpan"}
           </button>
@@ -852,6 +1018,7 @@ const PartnerEditModal = ({
   allProvinces,
   allCategories,
   userData,
+  allGroups,
 }) => {
   const [newPic, setNewPic] = useState("");
   const [partnerName, setPartnerName] = useState("");
@@ -876,6 +1043,19 @@ const PartnerEditModal = ({
     }
     return merged;
   }, [allCategories]);
+
+  const groupsToDisplay = useMemo(() => {
+    const list = new Set(["Advanta"]);
+    if (allGroups && Array.isArray(allGroups)) {
+      allGroups.forEach((g) => {
+        const trimmed = String(g || "").trim();
+        if (trimmed && trimmed !== "-") {
+          list.add(trimmed);
+        }
+      });
+    }
+    return Array.from(list);
+  }, [allGroups]);
 
   useEffect(() => {
     const userProv = String(userData?.province || userData?.area || "").trim();
@@ -1776,6 +1956,11 @@ const Dashboard = ({
   const [isLotChecking, setIsLotChecking] = useState(false);
   const [isLotNotFound, setIsLotNotFound] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [manualHybrid, setManualHybrid] = useState("");
+  const [manualCrop, setManualCrop] = useState("Field Corn");
+  const [manualDrDate, setManualDrDate] = useState("");
+  const [manualExpDate, setManualExpDate] = useState("");
+  const [manualHybridCustom, setManualHybridCustom] = useState("");
 
   // State Tab Partner
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
@@ -1871,6 +2056,21 @@ const Dashboard = ({
     ["Jawa Timur", "Jawa Tengah", "Jawa Barat"].forEach((p) => list.add(p));
     return Array.from(list).sort();
   }, [employees]);
+
+  const availableGroups = useMemo(() => {
+    const list = new Set<string>();
+    employees.forEach((emp) => {
+      const g = String(emp.group || "").trim();
+      if (g && g !== "-") {
+        list.add(g);
+      }
+    });
+    if (userData?.group) {
+      list.add(String(userData.group).trim());
+    }
+    ["Advanta"].forEach((g) => list.add(g));
+    return Array.from(list).sort();
+  }, [employees, userData]);
 
   // State Tab Summary
   const [summaryGroupBy, setSummaryGroupBy] = useState("hybrid"); // Default changed to 'hybrid'
@@ -3161,6 +3361,11 @@ const Dashboard = ({
     setIsLotNotFound(false);
     if (lotNo.length < 3) {
       setLotIntel(null);
+      setManualHybrid("");
+      setManualHybridCustom("");
+      setManualCrop("Field Corn");
+      setManualDrDate("");
+      setManualExpDate("");
       return;
     }
     const checkLot = async () => {
@@ -3203,10 +3408,48 @@ const Dashboard = ({
     return `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
   };
 
+  const formatDateToAppFormat = (dateStr: string) => {
+    if (!dateStr) return "N/A";
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return "N/A";
+    const day = String(date.getDate()).padStart(2, "0");
+    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const year = String(date.getFullYear()).substring(2);
+    return `${day}/${months[date.getMonth()]}/${year}`;
+  };
+
+  const calculateAgingInMonths = (startStr: string) => {
+    if (!startStr) return "-";
+    const start = new Date(startStr);
+    const end = new Date();
+    if (isNaN(start.getTime())) return "-";
+    return String(Math.round((end.getTime() - start.getTime()) / (1000 * 3600 * 24) / 30.416));
+  };
+
   const handleAddLocal = () => {
     if (!lotNo || !qty) return;
     const cleanLot = lotNo.trim().toUpperCase();
-    const cleanHybrid = lotIntel?.desc || "Unknown";
+    
+    let cleanHybrid = "Unknown";
+    let cleanCrops = "";
+    let cleanDrDate = "";
+    let cleanExpired = "N/A";
+    let cleanAging = "-";
+
+    if (lotIntel) {
+      cleanHybrid = lotIntel.desc || "Unknown";
+      cleanCrops = lotIntel.crops || "";
+      cleanDrDate = lotIntel.drDate || "";
+      cleanExpired = lotIntel.expDate || "N/A";
+      cleanAging = lotIntel.aging || "-";
+    } else if (isLotNotFound) {
+      const selectedH = manualHybrid === "CUSTOM" ? manualHybridCustom.trim() : manualHybrid.trim();
+      cleanHybrid = selectedH || "Unknown";
+      cleanCrops = manualCrop;
+      cleanDrDate = manualDrDate ? formatDateToAppFormat(manualDrDate) : "N/A";
+      cleanExpired = manualExpDate ? formatDateToAppFormat(manualExpDate) : "N/A";
+      cleanAging = manualDrDate ? calculateAgingInMonths(manualDrDate) : "-";
+    }
 
     const existingItemIndex = workingData.findIndex(
       (item) =>
@@ -3283,11 +3526,11 @@ const Dashboard = ({
         id: "local_" + Date.now(),
         lot: cleanLot,
         hybrid: cleanHybrid,
-        crops: lotIntel?.crops || "",
-        drDate: lotIntel?.drDate || "",
+        crops: cleanCrops,
+        drDate: cleanDrDate,
         stock: Number(qty),
-        aging: lotIntel?.aging || "-",
-        expired: lotIntel?.expDate || "N/A",
+        aging: cleanAging,
+        expired: cleanExpired,
         kiosk: selectedKiosk,
         condition: "new", // BARU
         isNew: true,
@@ -3298,13 +3541,20 @@ const Dashboard = ({
       };
       setWorkingData((prev) => [newItem, ...prev]);
     }
+
+    // Reset Form
     setLotNo("");
     setQty("");
     setLotIntel(null);
     setIsLotNotFound(false);
+    setManualHybrid("");
+    setManualHybridCustom("");
+    setManualCrop("Field Corn");
+    setManualDrDate("");
+    setManualExpDate("");
   };
 
-  const handleEditLocal = (id, newQty) => {
+  const handleEditLocal = (id, newQty, updatedFields = {}) => {
     const monthsKeys = [
       "jan",
       "feb",
@@ -3341,6 +3591,7 @@ const Dashboard = ({
           }
           return {
             ...item,
+            ...updatedFields,
             stock: nQty,
             condition: cond,
             user: userData.name,
@@ -9634,26 +9885,133 @@ const Dashboard = ({
                     )}
 
                   {!isLotChecking && isLotNotFound && (
-                    <div className="bg-red-50/90 border border-red-100 p-3.5 rounded-[18px] flex items-center gap-2.5 animate-in slide-in-from-top-2 shadow-sm">
-                      <span className="material-symbols-outlined text-red-500 text-lg flex-shrink-0">
-                        warning
-                      </span>
-                      <div className="flex flex-col">
-                        <p className="text-xs font-bold text-red-700 leading-tight">
-                          ⚠️ Peringatan: LOT tidak ditemukan!
-                        </p>
-                        <p className="text-[10px] text-red-600/90 mt-0.5 font-medium">
-                          Periksa kembali nomor Batch/Lot Anda untuk menghindari
-                          kesalahan pengisian data.
-                        </p>
+                    <div className="space-y-4 animate-in fade-in duration-200">
+                      {/* Warning Message */}
+                      <div className="bg-red-50 border border-red-100 p-3.5 rounded-[18px] flex items-center gap-2.5 shadow-sm">
+                        <span className="material-symbols-outlined text-red-500 text-lg flex-shrink-0">
+                          warning
+                        </span>
+                        <div className="flex flex-col">
+                          <p className="text-xs font-bold text-red-700 leading-tight">
+                            ⚠️ LOT tidak ditemukan di database!
+                          </p>
+                          <p className="text-[10px] text-red-600 mt-0.5 font-medium leading-relaxed">
+                            LOT ini belum terdaftar. Agar data stock tetap valid, Anda wajib melengkapi data Hybrid & Komoditas secara manual di bawah ini.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* 1. Hybrid/Varietas Input */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
+                          Hybrid / Varietas <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={manualHybrid}
+                            onChange={(e) => setManualHybrid(e.target.value)}
+                            className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all appearance-none pr-10"
+                            required
+                          >
+                            <option value="">-- Pilih Hybrid / Varietas --</option>
+                            {filterOptions.materials.map((mat) => (
+                              <option key={mat} value={mat}>
+                                {mat}
+                              </option>
+                            ))}
+                            <option value="CUSTOM">-- Ketik Manual (Varietas Baru) --</option>
+                          </select>
+                          <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-[#8E94B7] pointer-events-none text-lg">
+                            expand_more
+                          </span>
+                        </div>
+                        {manualHybrid === "CUSTOM" && (
+                          <input
+                            type="text"
+                            value={manualHybridCustom}
+                            onChange={(e) => setManualHybridCustom(e.target.value)}
+                            placeholder="Ketik Nama Hybrid Baru..."
+                            className="w-full h-11 mt-2 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all"
+                            required
+                          />
+                        )}
+                      </div>
+
+                      {/* 2. Commodity / Crop Input */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
+                          Komoditas <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={manualCrop}
+                            onChange={(e) => setManualCrop(e.target.value)}
+                            className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all appearance-none pr-10"
+                            required
+                          >
+                            {["Field Corn", "Fresh Corn", "Vegetables"].map((crop) => (
+                              <option key={crop} value={crop}>
+                                {crop}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-[#8E94B7] pointer-events-none text-lg">
+                            expand_more
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 3. Dates Grid */}
+                      <div className="grid grid-cols-2 gap-3">
+                        {/* Shipping Date */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
+                            Tgl DR / Shipping
+                          </label>
+                          <input
+                            type="date"
+                            value={manualDrDate}
+                            onChange={(e) => setManualDrDate(e.target.value)}
+                            className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all"
+                          />
+                        </div>
+
+                        {/* Expired Date */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
+                            Expired Date
+                          </label>
+                          <input
+                            type="date"
+                            value={manualExpDate}
+                            onChange={(e) => setManualExpDate(e.target.value)}
+                            className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all"
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
 
                   <button
                     onClick={handleAddLocal}
-                    disabled={!lotNo || !qty}
-                    className={`w-full h-14 rounded-full font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${!lotNo || !qty ? "bg-[#e0e0fa] text-[#8E94B7] shadow-none cursor-not-allowed" : "bg-gradient-to-r from-emerald-500 to-[#00D2FF] text-white shadow-[0_8px_20px_rgba(16,185,129,0.2)] hover:opacity-95"}`}
+                    disabled={
+                      !lotNo ||
+                      !qty ||
+                      (isLotNotFound &&
+                        (!manualHybrid ||
+                          (manualHybrid === "CUSTOM" && !manualHybridCustom.trim()) ||
+                          !manualCrop))
+                    }
+                    className={`w-full h-14 rounded-full font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
+                      !lotNo ||
+                      !qty ||
+                      (isLotNotFound &&
+                        (!manualHybrid ||
+                          (manualHybrid === "CUSTOM" && !manualHybridCustom.trim()) ||
+                          !manualCrop))
+                        ? "bg-[#e0e0fa] text-[#8E94B7] shadow-none cursor-not-allowed"
+                        : "bg-gradient-to-r from-emerald-500 to-[#00D2FF] text-white shadow-[0_8px_20px_rgba(16,185,129,0.2)] hover:opacity-95"
+                    }`}
                   >
                     <span className="material-symbols-outlined text-[18px]">
                       add_box
@@ -9688,6 +10046,7 @@ const Dashboard = ({
                 onClose={() => setEditModal({ isOpen: false, item: null })}
                 onSave={handleEditLocal}
                 isSaving={isActionLoading}
+                allHybrids={filterOptions.materials}
               />
               <ConfirmModal
                 isOpen={deleteModal.isOpen}
@@ -10205,6 +10564,7 @@ const Dashboard = ({
             allProvinces={availableProvinces}
             allCategories={allCategories}
             userData={userData}
+            allGroups={availableGroups}
           />
           <PartnerDeleteModal
             isOpen={partnerDeleteModal.isOpen}
