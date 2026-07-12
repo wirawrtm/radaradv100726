@@ -47,6 +47,16 @@ function doPost(e) {
       result = handleUpdatePartner(body);
     } else if (action === "deletePartner") {
       result = handleDeletePartner(body);
+    } else if (action === "batchActivity") {
+      result = handleBatchActivity(body);
+    } else if (action === "consolidateDatabase") {
+      result = handleConsolidateDatabase(body);
+    } else if (action === "updateEmployee") {
+      result = handleUpdateEmployee(body);
+    } else if (action === "deleteEmployee") {
+      result = handleDeleteEmployee(body);
+    } else if (action === "saveAccessRules") {
+      result = handleSaveAccessRules(body);
     } else {
       result = { 
         status: "error", 
@@ -1256,4 +1266,804 @@ function findEmployeeRow(user, empData) {
   }
   return null;
 }
+
+/**
+ * Overwrite a sheet's content (clear and write values)
+ */
+function updateSheetValues(sheetName, values) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return false;
+  sheet.clearContents();
+  if (values && values.length > 0 && values[0].length > 0) {
+    sheet.getRange(1, 1, values.length, values[0].length).setValues(values);
+  }
+  return true;
+}
+
+/**
+ * Get active Jakarta date
+ */
+function getJakartaDate() {
+  var formatted = Utilities.formatDate(new Date(), "Asia/Jakarta", "yyyy-MM-dd'T'HH:mm:ss");
+  return new Date(formatted);
+}
+
+/**
+ * Parse date string/object safely in Apps Script
+ */
+function parseGasDate(val) {
+  if (!val) return new Date(0);
+  if (val instanceof Date) return val;
+  var str = String(val).trim();
+  var d = new Date(str);
+  if (!isNaN(d.getTime())) return d;
+  if (str.indexOf("/") !== -1) {
+    var parts = str.split(/[\s/:]+/);
+    if (parts.length >= 3) {
+      var dPart = parseInt(parts[0], 10);
+      var mPart = parts[1];
+      var yPart = parseInt(parts[2], 10);
+      var m = parseInt(mPart, 10) - 1;
+      if (isNaN(m)) {
+        var months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+        var lowerM = mPart.toLowerCase();
+        m = months.findIndex(function(name) { return lowerM.indexOf(name) === 0; });
+        if (m === -1) m = 0;
+      }
+      return new Date(yPart, m, dPart);
+    }
+  }
+  if (str.indexOf("-") !== -1) {
+    var parts = str.split(/[\s\-:]+/);
+    if (parts.length >= 3) {
+      var dPart = parseInt(parts[0], 10);
+      var mPart = parts[1];
+      var yPart = parseInt(parts[2], 10);
+      if (yPart < 100) yPart += 2000;
+      var m = parseInt(mPart, 10) - 1;
+      if (isNaN(m)) {
+        var months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+        var lowerM = mPart.toLowerCase();
+        m = months.findIndex(function(name) { return lowerM.indexOf(name) === 0; });
+        if (m === -1) m = 0;
+      }
+      return new Date(yPart, m, dPart);
+    }
+  }
+  return new Date(0);
+}
+
+/**
+ * Get month index from timestamp
+ */
+function getMonthIndexFromDateString(dateStr) {
+  if (!dateStr) return new Date().getMonth();
+  if (dateStr instanceof Date) return dateStr.getMonth();
+  var str = String(dateStr).trim();
+  if (str.indexOf("/") !== -1) {
+    var parts = str.split(/[\s/:]+/);
+    if (parts.length >= 2) {
+      var mVal = parseInt(parts[1], 10);
+      if (!isNaN(mVal) && mVal >= 1 && mVal <= 12) return mVal - 1;
+      var months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+      var lowerM = parts[1].toLowerCase();
+      var m = months.findIndex(function(name) { return lowerM.indexOf(name) === 0; });
+      if (m !== -1) return m;
+    }
+  }
+  if (str.indexOf("-") !== -1) {
+    var parts = str.split(/[\s\-:]+/);
+    if (parts.length >= 2) {
+      var mVal = parseInt(parts[1], 10);
+      if (!isNaN(mVal) && mVal >= 1 && mVal <= 12) return mVal - 1;
+      var months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+      var lowerM = parts[1].toLowerCase();
+      var m = months.findIndex(function(name) { return lowerM.indexOf(name) === 0; });
+      if (m !== -1) return m;
+    }
+  }
+  return new Date().getMonth();
+}
+
+/**
+ * Safe bounds helper
+ */
+function colIndexInBounds(idx, row) {
+  return idx !== -1 && idx < row.length;
+}
+
+/**
+ * Resolve employee province/area
+ */
+function getUserProvince(userName, empData) {
+  if (!userName || !empData || empData.length <= 1) return "";
+  var headers = empData[0];
+  var provIdx = headers.findIndex(function(h) {
+    return /province|provinsi/i.test(String(h).trim());
+  });
+  var areaIdx = headers.findIndex(function(h) {
+    return /area/i.test(String(h).trim());
+  });
+  var row = findEmployeeRow(userName, empData);
+  if (row) {
+    if (provIdx !== -1 && row[provIdx] !== "" && row[provIdx] !== undefined) {
+      return String(row[provIdx]).trim();
+    }
+    if (areaIdx !== -1 && row[areaIdx] !== "" && row[areaIdx] !== undefined) {
+      return String(row[areaIdx]).trim();
+    }
+  }
+  return "";
+}
+
+/**
+ * Batch activity processor mirroring Express handler
+ */
+function handleBatchActivity(body) {
+  try {
+    var data = getSheetValues("working");
+    if (!data) return { status: "error", message: "Sheet 'working' tidak ditemukan" };
+
+    var headers = data[0];
+    var getIdx = function(patterns) {
+      return headers.findIndex(function(h) { return patterns.test(String(h).trim()); });
+    };
+
+    var idxPog = headers.findIndex(function(h) {
+      return /^pog$|^selisih$/i.test(String(h).trim());
+    });
+    if (idxPog === -1) {
+      headers.push("POG");
+      idxPog = headers.length - 1;
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var workingSheet = ss.getSheetByName("working");
+      workingSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    }
+
+    var idx = {
+      time: getIdx(/^tgl$|^waktu$|^date$|^timestamp$/i),
+      kiosk: getIdx(/^channel$|^kiosk$/i),
+      user: getIdx(/^name checker$|^nama checker$|^user$|^pic$|^checker$/i),
+      lot: getIdx(/^lot package$|^lot$/i),
+      qty: getIdx(/^quantity \(kg\)|^qty$|^stock$|^kg$/i),
+      area: getIdx(/^area$|^region$/i),
+      desc: getIdx(/^hybrid$|^material$/i),
+      exp: getIdx(/^exp date$|^expired$/i),
+      agingMonth: getIdx(/^aging \(month\)/i),
+      cond: getIdx(/^condition$|^kondisi$/i),
+      crops: getIdx(/^crops$/i),
+      dr: getIdx(/^shipping date$|^dr date$/i),
+      agingExp: getIdx(/^aging to exp$/i),
+      cluster: getIdx(/^cluster$/i),
+      pog: idxPog
+    };
+
+    var monthIndices = getMonthIndices(headers);
+    var updMonthIndices = getUpdMonthIndices(headers);
+
+    var currentMonthRowsMap = {};
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      var k = idx.kiosk !== -1 ? cleanForMatch(row[idx.kiosk]) : "";
+      var l = idx.lot !== -1 ? cleanForMatch(row[idx.lot]) : "";
+      var h = idx.desc !== -1 ? cleanForMatch(row[idx.desc]) : "";
+      var u = idx.user !== -1 ? cleanForMatch(row[idx.user]) : "";
+      var key = k + "_" + l + "_" + h + "_" + u;
+      if (k && l) {
+        var rowDate = new Date(0);
+        if (idx.time !== -1 && row[idx.time]) {
+          rowDate = parseGasDate(row[idx.time]);
+        }
+        if (!currentMonthRowsMap[key] || rowDate.getTime() > currentMonthRowsMap[key].date.getTime()) {
+          currentMonthRowsMap[key] = { index: i + 1, date: rowDate };
+        }
+      }
+    }
+
+    var now = getJakartaDate();
+    var pad = function(n) { return String(n).padStart(2, "0"); };
+    var timestamp = pad(now.getDate()) + "/" + pad(now.getMonth() + 1) + "/" + now.getFullYear() + " " + pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
+
+    var empData = getSheetValues("employee") || [];
+
+    if (body.items && body.items.length > 0) {
+      for (var j = 0; j < body.items.length; j++) {
+        var item = body.items[j];
+        var k = cleanForMatch(item.kiosk);
+        var l = cleanForMatch(item.lot);
+        var h = cleanForMatch(item.hybrid);
+        var u = cleanForMatch(item.user || body.user);
+        var key = k + "_" + l + "_" + h + "_" + u;
+        var existingMatch = currentMonthRowsMap[key];
+        var existingRow = existingMatch ? existingMatch.index : null;
+        var agingExpVal = "";
+        if (item.expired && item.expired !== "N/A") {
+          var expD = new Date(item.expired);
+          if (!isNaN(expD.getTime())) {
+            var today = getJakartaDate();
+            today.setHours(0, 0, 0, 0);
+            agingExpVal = String(Math.round((expD.getTime() - today.getTime()) / (1000 * 3600 * 24) / 30.416));
+          }
+        }
+        var clusterVal = "";
+        if (item.aging && item.aging !== "-" && !isNaN(Number(item.aging))) {
+          var aVal = Number(item.aging);
+          if (aVal <= 2) clusterVal = "0-2";
+          else if (aVal <= 4) clusterVal = "2-4";
+          else if (aVal <= 6) clusterVal = "4-6";
+          else if (aVal <= 9) clusterVal = "6-9";
+          else if (aVal <= 12) clusterVal = "9-12";
+          else clusterVal = ">12";
+        }
+        var itemMonthIdx = getMonthIndexFromDateString(timestamp);
+        var monthColIdx = monthIndices[itemMonthIdx];
+
+        var prevMonthStock = 0;
+        if (existingRow) {
+          var prevMonthIdx = (itemMonthIdx - 1 + 12) % 12;
+          var prevMonthColIdx = monthIndices[prevMonthIdx];
+          if (prevMonthColIdx !== -1) {
+            prevMonthStock = Number(data[existingRow - 1][prevMonthColIdx]) || 0;
+          } else {
+            prevMonthStock = Number(item.originalStock) || 0;
+          }
+        } else {
+          prevMonthStock = Number(item.originalStock) || 0;
+        }
+
+        if (item.condition === "habis" || Number(item.stock) === 0) {
+          item.stock = 0;
+        }
+        var pogVal = prevMonthStock - (Number(item.stock) || 0);
+
+        if (existingRow) {
+          var rowIndex = existingRow - 1;
+          if (monthColIdx !== -1) {
+            data[rowIndex][monthColIdx] = item.stock;
+          }
+          var updMonthColIdx = updMonthIndices[itemMonthIdx];
+          if (updMonthColIdx !== -1) {
+            data[rowIndex][updMonthColIdx] = "sales";
+          }
+
+          if (idx.qty !== -1) data[rowIndex][idx.qty] = item.stock;
+          if (idx.cond !== -1) data[rowIndex][idx.cond] = item.condition;
+          if (idx.time !== -1) data[rowIndex][idx.time] = timestamp;
+          if (idx.user !== -1) data[rowIndex][idx.user] = item.user || body.user;
+          var resolvedArea = getUserProvince(item.user || body.user, empData) || body.area || "";
+          if (idx.area !== -1 && resolvedArea) data[rowIndex][idx.area] = resolvedArea;
+          if (idx.agingExp !== -1 && agingExpVal !== "") data[rowIndex][idx.agingExp] = agingExpVal;
+          if (idx.cluster !== -1 && clusterVal !== "") data[rowIndex][idx.cluster] = clusterVal;
+          if (idx.pog !== -1) data[rowIndex][idx.pog] = pogVal;
+        } else {
+          var newRow = [];
+          for (var c = 0; c < headers.length; c++) newRow.push("");
+          if (idx.time !== -1) newRow[idx.time] = timestamp;
+          if (idx.kiosk !== -1) newRow[idx.kiosk] = item.kiosk;
+          if (idx.user !== -1) newRow[idx.user] = item.user || body.user;
+          if (idx.lot !== -1) newRow[idx.lot] = String(item.lot).toUpperCase();
+
+          if (monthColIdx !== -1) {
+            newRow[monthColIdx] = item.stock;
+          }
+          var updMonthColIdx = updMonthIndices[itemMonthIdx];
+          if (updMonthColIdx !== -1) {
+            newRow[updMonthColIdx] = "sales";
+          }
+
+          if (idx.qty !== -1) newRow[idx.qty] = item.stock;
+          var resolvedArea = getUserProvince(item.user || body.user, empData) || body.area || "";
+          if (idx.area !== -1) newRow[idx.area] = resolvedArea;
+          if (idx.desc !== -1) newRow[idx.desc] = item.hybrid;
+          if (idx.crops !== -1) newRow[idx.crops] = item.crops || "";
+          if (idx.dr !== -1) newRow[idx.dr] = item.drDate || "";
+          if (idx.exp !== -1) newRow[idx.exp] = item.expired;
+          if (idx.agingMonth !== -1) newRow[idx.agingMonth] = item.aging;
+          if (idx.cond !== -1) newRow[idx.cond] = item.condition;
+          if (idx.agingExp !== -1) newRow[idx.agingExp] = agingExpVal;
+          if (idx.cluster !== -1) newRow[idx.cluster] = clusterVal;
+          if (idx.pog !== -1) newRow[idx.pog] = pogVal;
+
+          for (var m = 0; m < 12; m++) {
+            var colIdx = monthIndices[m];
+            if (colIdx !== -1 && colIdx !== monthColIdx) {
+              newRow[colIdx] = 0;
+            }
+          }
+          data.push(newRow);
+        }
+      }
+      updateSheetValues("working", data);
+    }
+    return { status: "success" };
+  } catch (err) {
+    return { status: "error", message: err.toString() };
+  }
+}
+
+/**
+ * Consolidate working sheet data mirroring Express handler
+ */
+function handleConsolidateDatabase(body) {
+  try {
+    var data = getSheetValues("working");
+    var drData = getSheetValues("dr");
+    var empDataRaw = getSheetValues("employee");
+
+    if (!data || data.length <= 1) {
+      return { status: "success", message: "Tidak ada data untuk dikonsolidasi" };
+    }
+
+    var empData = empDataRaw || [];
+    var headers = data[0];
+    var getIdx = function(patterns) {
+      return headers.findIndex(function(h) { return patterns.test(String(h).trim()); });
+    };
+
+    var idxPog = headers.findIndex(function(h) {
+      return /^pog$|^selisih$/i.test(String(h).trim());
+    });
+    if (idxPog === -1) {
+      headers.push("POG");
+      idxPog = headers.length - 1;
+    }
+
+    var idx = {
+      time: getIdx(/^tgl$|^waktu$|^date$|^timestamp$/i),
+      kiosk: getIdx(/^channel$|^kiosk$/i),
+      user: getIdx(/^name checker$|^nama checker$|^user$|^pic$|^checker$/i),
+      lot: getIdx(/^lot package$|^lot$/i),
+      qty: getIdx(/^quantity \(kg\)|^qty$|^stock$|^kg$/i),
+      area: getIdx(/^area$|^region$/i),
+      desc: getIdx(/^hybrid$|^material$/i),
+      exp: getIdx(/^exp date$|^expired$/i),
+      agingMonth: getIdx(/^aging \(month\)/i),
+      cond: getIdx(/^condition$|^kondisi$/i),
+      crops: getIdx(/^crops$/i),
+      dr: getIdx(/^shipping date$|^dr date$/i),
+      agingExp: getIdx(/^aging to exp$/i),
+      cluster: getIdx(/^cluster$/i),
+      pog: idxPog
+    };
+
+    var monthIndices = getMonthIndices(headers);
+    var updMonthIndices = getUpdMonthIndices(headers);
+
+    var isValidVal = function(v) {
+      return (
+        v !== undefined &&
+        v !== null &&
+        String(v).trim() !== "" &&
+        String(v).trim().toUpperCase() !== "N/A" &&
+        String(v).trim() !== "-"
+      );
+    };
+
+    var lotLookup = {};
+    if (drData && drData.length > 1) {
+      var drHeaders = drData[0];
+      var drIdx = {
+        lot: drHeaders.findIndex(function(h) { return /lot/i.test(String(h).trim()); }),
+        dr: drHeaders.findIndex(function(h) { return /dr date|shipping date/i.test(String(h).trim()); }),
+        exp: drHeaders.findIndex(function(h) { return /exp date|expired/i.test(String(h).trim()); })
+      };
+      if (drIdx.lot !== -1) {
+        for (var j = 1; j < drData.length; j++) {
+          var drRow = drData[j];
+          var lNo = String(drRow[drIdx.lot] || "").trim().toUpperCase();
+          if (lNo && !lotLookup[lNo]) {
+            lotLookup[lNo] = {
+              drDate: (drIdx.dr !== -1 && drRow[drIdx.dr]) ? formatMyDate(drRow[drIdx.dr]) : "",
+              expDate: (drIdx.exp !== -1 && drRow[drIdx.exp]) ? formatMyDate(drRow[drIdx.exp]) : ""
+            };
+          }
+        }
+      }
+    }
+
+    var grouped = {};
+
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      if (!row[0] && idx.kiosk !== -1 && !row[idx.kiosk]) continue;
+
+      var kioskVal = (idx.kiosk !== -1) ? String(row[idx.kiosk] || "").trim() : "";
+      var lotVal = (idx.lot !== -1) ? String(row[idx.lot] || "").trim() : "";
+      var descVal = (idx.desc !== -1) ? String(row[idx.desc] || "").trim() : "";
+      var userVal = (idx.user !== -1) ? String(row[idx.user] || "").trim() : "";
+
+      var groupKey = cleanForMatch(kioskVal) + "_" + cleanForMatch(lotVal) + "_" + cleanForMatch(descVal) + "_" + cleanForMatch(userVal);
+      var timestampStr = idx.time !== -1 ? row[idx.time] : "";
+      var rowDate = timestampStr ? parseGasDate(timestampStr) : new Date(0);
+      var rowMonthIdx = getMonthIndexFromDateString(timestampStr);
+
+      var monthValsSrc = [];
+      for (var m = 0; m < 12; m++) monthValsSrc.push(0);
+      monthIndices.forEach(function(colIdx, mIdx) {
+        if (colIdx !== -1 && colIdx < row.length && row[colIdx] !== "") {
+          monthValsSrc[mIdx] = Number(row[colIdx]) || 0;
+        }
+      });
+
+      var updValsSrc = [];
+      for (var m = 0; m < 12; m++) updValsSrc.push("");
+      updMonthIndices.forEach(function(colIdx, mIdx) {
+        if (
+          colIdx !== -1 &&
+          colIdx < row.length &&
+          row[colIdx] !== undefined &&
+          row[colIdx] !== null &&
+          row[colIdx] !== ""
+        ) {
+          updValsSrc[mIdx] = String(row[colIdx]).trim();
+        }
+      });
+
+      var totalMonthVals = 0;
+      for (var m = 0; m < 12; m++) totalMonthVals += monthValsSrc[m];
+      var qtyVal = idx.qty !== -1 ? (Number(row[idx.qty]) || 0) : 0;
+      if (totalMonthVals === 0 && qtyVal > 0) {
+        monthValsSrc[rowMonthIdx] = qtyVal;
+      }
+
+      var lotUpper = String(lotVal).trim().toUpperCase();
+      var currentExp = (idx.exp !== -1 && colIndexInBounds(idx.exp, row)) ? row[idx.exp] : "";
+      var currentDr = (idx.dr !== -1 && colIndexInBounds(idx.dr, row)) ? row[idx.dr] : "";
+
+      if (!isValidVal(currentExp) && lotLookup[lotUpper]) {
+        currentExp = lotLookup[lotUpper].expDate;
+      }
+      if (!isValidVal(currentDr) && lotLookup[lotUpper]) {
+        currentDr = lotLookup[lotUpper].drDate;
+      }
+
+      if (!grouped[groupKey]) {
+        grouped[groupKey] = {
+          kiosk: kioskVal,
+          lot: lotVal,
+          desc: descVal,
+          user: userVal,
+          timestamp: rowDate,
+          originalTimestampStr: timestampStr,
+          area: getUserProvince(userVal, empData) || (idx.area !== -1 && colIndexInBounds(idx.area, row) ? row[idx.area] : ""),
+          crops: (idx.crops !== -1 && colIndexInBounds(idx.crops, row)) ? row[idx.crops] : "",
+          exp: currentExp,
+          dr: currentDr,
+          agingMonth: (idx.agingMonth !== -1 && colIndexInBounds(idx.agingMonth, row)) ? row[idx.agingMonth] : "",
+          cond: (idx.cond !== -1 && colIndexInBounds(idx.cond, row)) ? row[idx.cond] : "tetap",
+          agingExp: (idx.agingExp !== -1 && colIndexInBounds(idx.agingExp, row)) ? row[idx.agingExp] : "",
+          cluster: (idx.cluster !== -1 && colIndexInBounds(idx.cluster, row)) ? row[idx.cluster] : "",
+          pog: (idx.pog !== -1 && colIndexInBounds(idx.pog, row)) ? (Number(row[idx.pog]) || 0) : 0,
+          monthlyQty: monthValsSrc,
+          updMonthVals: updValsSrc,
+          rawIndex: i
+        };
+      } else {
+        var g = grouped[groupKey];
+        for (var m = 0; m < 12; m++) {
+          g.monthlyQty[m] += monthValsSrc[m];
+        }
+        if (!g.updMonthVals) {
+          g.updMonthVals = [];
+          for (var m = 0; m < 12; m++) g.updMonthVals.push("");
+        }
+        for (var m = 0; m < 12; m++) {
+          var v1 = String(g.updMonthVals[m] || "").trim().toLowerCase();
+          var v2 = String(updValsSrc[m] || "").trim().toLowerCase();
+          if (v1 === "sales" || v2 === "sales") {
+            g.updMonthVals[m] = "sales";
+          } else if (v1 === "admin" || v2 === "admin") {
+            g.updMonthVals[m] = "admin";
+          } else {
+            g.updMonthVals[m] = "";
+          }
+        }
+
+        var isNewer = rowDate.getTime() > g.timestamp.getTime();
+        if (isNewer) {
+          g.timestamp = rowDate;
+          g.originalTimestampStr = timestampStr;
+        }
+
+        var updateField = function(gKey, rowVal) {
+          if (isNewer) {
+            if (isValidVal(rowVal)) g[gKey] = rowVal;
+          } else {
+            if (isValidVal(rowVal) && !isValidVal(g[gKey])) g[gKey] = rowVal;
+          }
+        };
+
+        if (idx.area !== -1 && colIndexInBounds(idx.area, row)) {
+          updateField("area", getUserProvince(userVal, empData) || row[idx.area]);
+        }
+        if (idx.crops !== -1 && colIndexInBounds(idx.crops, row)) {
+          updateField("crops", row[idx.crops]);
+        }
+        updateField("exp", currentExp);
+        updateField("dr", currentDr);
+        if (idx.agingMonth !== -1 && colIndexInBounds(idx.agingMonth, row)) {
+          updateField("agingMonth", row[idx.agingMonth]);
+        }
+        if (idx.agingExp !== -1 && colIndexInBounds(idx.agingExp, row)) {
+          updateField("agingExp", row[idx.agingExp]);
+        }
+        if (idx.cluster !== -1 && colIndexInBounds(idx.cluster, row)) {
+          updateField("cluster", row[idx.cluster]);
+        }
+
+        if (idx.cond !== -1 && colIndexInBounds(idx.cond, row)) {
+          var rowVal = row[idx.cond];
+          if (isNewer && isValidVal(rowVal) && rowVal !== "tetap") {
+            g.cond = rowVal;
+          } else if (
+            !isNewer &&
+            isValidVal(rowVal) &&
+            rowVal !== "tetap" &&
+            (!g.cond || g.cond === "tetap")
+          ) {
+            g.cond = rowVal;
+          }
+        }
+
+        if (idx.pog !== -1 && colIndexInBounds(idx.pog, row)) {
+          g.pog += Number(row[idx.pog]) || 0;
+        }
+      }
+    }
+
+    var todayDate = getJakartaDate();
+    todayDate.setHours(0, 0, 0, 0);
+    var curMonthIdx = todayDate.getMonth();
+    var prevMonthIdx = (curMonthIdx - 1 + 12) % 12;
+
+    var newSheetValues = [headers];
+
+    var groupKeys = Object.keys(grouped);
+    for (var k = 0; k < groupKeys.length; k++) {
+      var g = grouped[groupKeys[k]];
+      if (!g.monthlyQty) {
+        g.monthlyQty = [];
+        for (var m = 0; m < 12; m++) g.monthlyQty.push(0);
+      }
+      if (!g.updMonthVals) {
+        g.updMonthVals = [];
+        for (var m = 0; m < 12; m++) g.updMonthVals.push("");
+      }
+      if (g.updMonthVals[curMonthIdx] !== "sales") {
+        g.monthlyQty[curMonthIdx] = g.monthlyQty[prevMonthIdx] || 0;
+        g.updMonthVals[curMonthIdx] = "admin";
+      }
+
+      var curStock = Number(g.monthlyQty[curMonthIdx]) || 0;
+      var prevStock = Number(g.monthlyQty[prevMonthIdx]) || 0;
+      g.pog = prevStock - curStock;
+
+      if (isValidVal(g.dr) && g.dr !== "N/A") {
+        g.dr = formatMyDate(parseGasDate(g.dr));
+      }
+      if (isValidVal(g.exp) && g.exp !== "N/A") {
+        g.exp = formatMyDate(parseGasDate(g.exp));
+      }
+
+      if (isValidVal(g.dr) && g.dr !== "N/A") {
+        var drD = parseGasDate(g.dr);
+        if (drD && !isNaN(drD.getTime()) && drD.getTime() !== 0) {
+          var calcAge = Math.round((todayDate.getTime() - drD.getTime()) / (1000 * 3600 * 24) / 30.416);
+          g.agingMonth = calcAge >= 0 ? calcAge : 0;
+        }
+      }
+
+      if (isValidVal(g.exp) && g.exp !== "N/A") {
+        var expD = parseGasDate(g.exp);
+        if (expD && !isNaN(expD.getTime()) && expD.getTime() !== 0) {
+          g.agingExp = Math.round((expD.getTime() - todayDate.getTime()) / (1000 * 3600 * 24) / 30.416);
+        }
+      }
+
+      if (
+        g.agingMonth !== "" &&
+        g.agingMonth !== undefined &&
+        g.agingMonth !== null &&
+        !isNaN(Number(g.agingMonth))
+      ) {
+        var aVal = Number(g.agingMonth);
+        if (aVal <= 2) g.cluster = "0-2";
+        else if (aVal <= 4) g.cluster = "2-4";
+        else if (aVal <= 6) g.cluster = "4-6";
+        else if (aVal <= 9) g.cluster = "6-9";
+        else if (aVal <= 12) g.cluster = "9-12";
+        else g.cluster = ">12";
+      }
+
+      var totalQty = 0;
+      for (var m = 0; m < 12; m++) totalQty += g.monthlyQty[m];
+      var currentMonthQty = g.monthlyQty[curMonthIdx];
+      var prevMonthQty = g.monthlyQty[prevMonthIdx];
+
+      if (totalQty === 0) {
+        g.cond = "habis";
+      } else {
+        if (g.cond === "habis") g.cond = "tetap";
+        if (g.cond !== "new" && g.cond !== "baru" && g.cond !== "baru (new)") {
+          if (currentMonthQty < prevMonthQty) {
+            g.cond = "berkurang";
+          } else if (currentMonthQty > prevMonthQty) {
+            g.cond = "bertambah";
+          } else {
+            g.cond = "tetap";
+          }
+        }
+      }
+
+      for (var m = 0; m < 12; m++) {
+        var uVal = String(g.updMonthVals[m] || "").trim().toLowerCase();
+        if (uVal === "sales") {
+          g.updMonthVals[m] = "sales";
+        } else if (uVal === "admin") {
+          g.updMonthVals[m] = "admin";
+        } else {
+          g.updMonthVals[m] = "";
+        }
+      }
+
+      var newRow = [];
+      for (var c = 0; c < headers.length; c++) newRow.push("");
+      var pad = function(n) { return String(n).padStart(2, "0"); };
+      var now = getJakartaDate();
+      var timestamp = pad(now.getDate()) + "/" + pad(now.getMonth() + 1) + "/" + now.getFullYear() + " " + pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
+
+      if (idx.time !== -1) newRow[idx.time] = timestamp;
+      if (idx.kiosk !== -1) newRow[idx.kiosk] = g.kiosk;
+      if (idx.user !== -1) newRow[idx.user] = g.user;
+      if (idx.lot !== -1) newRow[idx.lot] = String(g.lot).toUpperCase();
+      if (idx.qty !== -1) newRow[idx.qty] = g.monthlyQty[curMonthIdx];
+
+      if (idx.area !== -1) newRow[idx.area] = g.area;
+      if (idx.desc !== -1) newRow[idx.desc] = g.desc;
+      if (idx.crops !== -1) newRow[idx.crops] = g.crops;
+      if (idx.dr !== -1) newRow[idx.dr] = g.dr;
+      if (idx.exp !== -1) newRow[idx.exp] = g.exp;
+      if (idx.agingMonth !== -1) newRow[idx.agingMonth] = g.agingMonth;
+      if (idx.cond !== -1) newRow[idx.cond] = g.cond;
+      if (idx.agingExp !== -1) newRow[idx.agingExp] = g.agingExp;
+      if (idx.cluster !== -1) newRow[idx.cluster] = g.cluster;
+      if (idx.pog !== -1) newRow[idx.pog] = g.pog;
+
+      monthIndices.forEach(function(colIdx, mIdx) {
+        if (colIdx !== -1) {
+          newRow[colIdx] = g.updMonthVals[mIdx] !== "" ? Number(g.monthlyQty[mIdx]) || 0 : "";
+        }
+      });
+
+      updMonthIndices.forEach(function(colIdx, mIdx) {
+        if (colIdx !== -1) {
+          newRow[colIdx] = g.updMonthVals[mIdx] || "";
+        }
+      });
+
+      newSheetValues.push(newRow);
+    }
+
+    updateSheetValues("working", newSheetValues);
+    return { status: "success", message: "Konsolidasi berhasil dilakukan" };
+  } catch (error) {
+    return { status: "error", message: error.toString() };
+  }
+}
+
+/**
+ * Handle Employee update/insert
+ */
+function handleUpdateEmployee(body) {
+  try {
+    var data = getSheetValues("employee");
+    if (!data) return { status: "error", message: "Sheet 'employee' tidak ditemukan" };
+    var headers = data[0];
+    var getIdx = function(patterns) {
+      return headers.findIndex(function(h) { return patterns.test(String(h).trim()); });
+    };
+    var emailIdx = headers.findIndex(function(h) { return /email/i.test(String(h).trim()); });
+    var userIdx = headers.findIndex(function(h) { return /^user$|^username$|^user\s*name$/i.test(String(h).trim().toLowerCase()); });
+    var idx = {
+      name: getIdx(/nama|name|pic/i),
+      email: emailIdx !== -1 ? emailIdx : getIdx(/email|user/i),
+      username: userIdx !== -1 ? userIdx : -1,
+      pos: getIdx(/position|jabatan/i),
+      prov: getIdx(/province|provinsi/i),
+      area: getIdx(/area/i),
+      upline: getIdx(/upline|spv|supervisor|atasan|manager/i),
+      password: getIdx(/password|pass/i),
+      level: getIdx(/level|grade/i),
+      group: getIdx(/group|tim|divisi|division/i)
+    };
+
+    if (idx.name === -1) return { status: "error", message: "Kolom nama tidak ditemukan di sheet employee" };
+
+    var targetClean = cleanForMatch(body.originalName);
+    var targetRow = -1;
+    if (body.originalName) {
+      for (var i = 1; i < data.length; i++) {
+        if (cleanForMatch(data[i][idx.name]) === targetClean) {
+          targetRow = i + 1;
+          break;
+        }
+      }
+    }
+
+    if (targetRow !== -1) {
+      var rowIndex = targetRow - 1;
+      if (body.name !== undefined) data[rowIndex][idx.name] = body.name;
+      if (idx.username !== -1 && body.user !== undefined) {
+        data[rowIndex][idx.username] = body.user;
+      } else if (idx.email !== -1 && body.email !== undefined) {
+        data[rowIndex][idx.email] = body.email;
+      }
+      if (idx.pos !== -1 && body.position !== undefined) data[rowIndex][idx.pos] = body.position;
+      if (idx.prov !== -1 && body.province !== undefined) data[rowIndex][idx.prov] = body.province;
+      if (idx.area !== -1 && body.area !== undefined) data[rowIndex][idx.area] = body.area;
+      if (idx.upline !== -1 && body.upline !== undefined) data[rowIndex][idx.upline] = body.upline;
+      if (idx.password !== -1 && body.password !== undefined) data[rowIndex][idx.password] = body.password;
+      if (idx.level !== -1 && body.level !== undefined) data[rowIndex][idx.level] = body.level;
+      if (idx.group !== -1 && body.group !== undefined) data[rowIndex][idx.group] = body.group;
+      updateSheetValues("employee", data);
+    } else {
+      var newRow = [];
+      for (var c = 0; c < headers.length; c++) newRow.push("");
+      if (idx.name !== -1 && body.name !== undefined) newRow[idx.name] = body.name;
+      if (idx.username !== -1 && body.user !== undefined) {
+        newRow[idx.username] = body.user;
+      } else if (idx.email !== -1 && body.email !== undefined) {
+        newRow[idx.email] = body.email;
+      }
+      if (idx.pos !== -1 && body.position !== undefined) newRow[idx.pos] = body.position;
+      if (idx.prov !== -1 && body.province !== undefined) newRow[idx.prov] = body.province;
+      if (idx.area !== -1 && body.area !== undefined) newRow[idx.area] = body.area;
+      if (idx.upline !== -1 && body.upline !== undefined) newRow[idx.upline] = body.upline;
+      if (idx.password !== -1 && body.password !== undefined) newRow[idx.password] = body.password;
+      if (idx.level !== -1 && body.level !== undefined) newRow[idx.level] = body.level;
+      if (idx.group !== -1 && body.group !== undefined) newRow[idx.group] = body.group;
+      
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var sheet = ss.getSheetByName("employee");
+      if (sheet) {
+        sheet.appendRow(newRow);
+      }
+    }
+    return { status: "success" };
+  } catch (error) {
+    return { status: "error", message: error.toString() };
+  }
+}
+
+/**
+ * Handle Access Rules Saving
+ */
+function handleSaveAccessRules(body) {
+  try {
+    var rules = body.rules || {};
+    var headers = ["position", "home", "partner", "stock", "pog", "overview", "temp", "access"];
+    var rows = [headers];
+
+    for (var position in rules) {
+      var rule = rules[position];
+      rows.push([
+        position,
+        rule.home ? "TRUE" : "FALSE",
+        rule.partner ? "TRUE" : "FALSE",
+        rule.stock ? "TRUE" : "FALSE",
+        rule.pog ? "TRUE" : "FALSE",
+        rule.overview ? "TRUE" : "FALSE",
+        rule.temp ? "TRUE" : "FALSE",
+        rule.access ? "TRUE" : "FALSE"
+      ]);
+    }
+
+    updateSheetValues("access", rows);
+    return { status: "success" };
+  } catch (error) {
+    return { status: "error", message: error.toString() };
+  }
+}
+
 
