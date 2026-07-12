@@ -370,10 +370,19 @@ function handleDeletePartner(body) {
   var data = sheet.getDataRange().getValues();
   var headers = data[0];
   
+  var idxPic = -1;
   var idxChannel = -1;
+  var idxCat = -1;
+  var idxProvince = -1;
+  var idxArea = -1;
+  
   for (var i = 0; i < headers.length; i++) {
     var h = String(headers[i]).trim();
+    if (/pic|user|nama|analyst|solution/i.test(h)) idxPic = i;
     if (/channel|kiosk|nama toko|toko|name|distributor|partner|mitra/i.test(h)) idxChannel = i;
+    if (/kategori|category|klasifikasi|^cat$/i.test(h)) idxCat = i;
+    if (/provinsi|province/i.test(h)) idxProvince = i;
+    if (/^area$/i.test(h)) idxArea = i;
   }
   
   if (idxChannel === -1) {
@@ -383,19 +392,34 @@ function handleDeletePartner(body) {
   var rowIndex = -1;
   var rowNum = Number(body.id);
   
-  // 1. Cari berdasarkan Row Number (ID baris)
+  // 1. Validasi via Row Number (ID baris)
   if (!isNaN(rowNum) && rowNum > 1 && rowNum <= data.length) {
     var potentialRow = data[rowNum - 1];
     if (potentialRow && idxChannel !== -1) {
       var currentClean = cleanForMatch(potentialRow[idxChannel]);
-      var targetClean = body.name ? cleanForMatch(body.name) : "";
-      if (!targetClean || currentClean === targetClean) {
+      var cleanOrig = body.originalName ? cleanForMatch(body.originalName) : "";
+      var cleanName = body.name ? cleanForMatch(body.name) : "";
+      
+      if (cleanOrig && currentClean === cleanOrig) {
+        rowIndex = rowNum - 1;
+      } else if (cleanName && currentClean === cleanName) {
         rowIndex = rowNum - 1;
       }
     }
   }
   
-  // 2. Fallback cari berdasarkan nama partner
+  // 2. Fallback pencarian berdasarkan nama asli (originalName)
+  if (rowIndex === -1 && body.originalName && idxChannel !== -1) {
+    var targetClean = cleanForMatch(body.originalName);
+    for (var r = 1; r < data.length; r++) {
+      if (cleanForMatch(data[r][idxChannel]) === targetClean) {
+        rowIndex = r;
+        break;
+      }
+    }
+  }
+  
+  // 3. Fallback pencarian berdasarkan nama baru (name)
   if (rowIndex === -1 && body.name && idxChannel !== -1) {
     var targetClean = cleanForMatch(body.name);
     for (var r = 1; r < data.length; r++) {

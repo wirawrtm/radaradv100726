@@ -2375,39 +2375,73 @@ async function handleDeletePartner(body: any) {
   const data = await getSheetValues("channel");
   if (!data) throw new Error("Sheet 'channel' tidak ditemukan");
   const headers = data[0];
-  const idxChannel = headers.findIndex((h: any) =>
-    /channel|kiosk|nama toko|toko|name|distributor|partner|mitra/i.test(String(h).trim()),
-  );
+  const idx = {
+    pic: headers.findIndex((h: any) =>
+      /pic|user|nama|analyst|solution/i.test(String(h).trim()),
+    ),
+    channel: headers.findIndex((h: any) =>
+      /channel|kiosk|nama toko|toko|name|distributor|partner|mitra/i.test(String(h).trim()),
+    ),
+    cat: headers.findIndex((h: any) =>
+      /kategori|category|klasifikasi|^cat$/i.test(String(h).trim()),
+    ),
+    upline: headers.findIndex((h: any) =>
+      /upline|spv|supervisor/i.test(String(h).trim()),
+    ),
+    province: headers.findIndex((h: any) =>
+      /provinsi|province/i.test(String(h).trim()),
+    ),
+    area: headers.findIndex((h: any) =>
+      /^area$/i.test(String(h).trim()),
+    ),
+    group: headers.findIndex((h: any) =>
+      /group|tim|divisi|division/i.test(String(h).trim()),
+    ),
+  };
 
-  if (idxChannel === -1) throw new Error("Kolom nama partner tidak ditemukan di sheet");
+  if (idx.channel === -1) throw new Error("Kolom nama partner tidak ditemukan di sheet");
 
   let rowIndex = -1;
   const rowNum = Number(body.id);
 
-  // 1. Try searching by ID first and verify name matches using cleanForMatch
+  // 1. Check if rowNum is within bounds and the name actually matches using cleanForMatch
   if (!isNaN(rowNum) && rowNum > 1 && rowNum <= data.length) {
     const potentialRow = data[rowNum - 1];
-    if (potentialRow && idxChannel !== -1) {
-      const currentClean = cleanForMatch(potentialRow[idxChannel]);
-      const targetClean = body.name ? cleanForMatch(body.name) : "";
-      if (!targetClean || currentClean === targetClean) {
+    if (potentialRow && idx.channel !== -1) {
+      const currentClean = cleanForMatch(potentialRow[idx.channel]);
+      const cleanOrig = body.originalName ? cleanForMatch(body.originalName) : "";
+      const cleanName = body.name ? cleanForMatch(body.name) : "";
+      
+      if (cleanOrig && currentClean === cleanOrig) {
+        rowIndex = rowNum - 1;
+      } else if (cleanName && currentClean === cleanName) {
         rowIndex = rowNum - 1;
       }
     }
   }
 
-  // 2. Fallback searching by name using cleanForMatch
-  if (rowIndex === -1 && body.name && idxChannel !== -1) {
+  // 2. If row number didn't match, search by originalName across all rows using cleanForMatch
+  if (rowIndex === -1 && body.originalName && idx.channel !== -1) {
+    const targetClean = cleanForMatch(body.originalName);
+    rowIndex = data.findIndex(
+      (row, idxVal) =>
+        idxVal > 0 &&
+        cleanForMatch(row[idx.channel]) === targetClean,
+    );
+  }
+
+  // 3. Fallback to searching by name across all rows using cleanForMatch
+  if (rowIndex === -1 && body.name && idx.channel !== -1) {
     const targetClean = cleanForMatch(body.name);
     rowIndex = data.findIndex(
-      (row, index) =>
-        index > 0 &&
-        cleanForMatch(row[idxChannel]) === targetClean,
+      (row, idxVal) =>
+        idxVal > 0 &&
+        cleanForMatch(row[idx.channel]) === targetClean,
     );
   }
 
   if (rowIndex > 0 && rowIndex < data.length) {
-    const deletedName = data[rowIndex][idxChannel];
+    const deletedName = data[rowIndex][idx.channel];
     data.splice(rowIndex, 1);
     const success = await updateSheetValues("channel", data);
     if (!success) throw new Error("Gagal menyimpan perubahan ke Google Sheets");
