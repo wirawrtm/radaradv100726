@@ -1448,6 +1448,9 @@ async function handleGetEmployees() {
     group: headers.findIndex((h: any) =>
       /group|tim|divisi|division/i.test(String(h).trim()),
     ),
+    status: headers.findIndex((h: any) =>
+      /status|aktif|active/i.test(String(h).trim()),
+    ),
   };
 
   const result = data
@@ -1472,6 +1475,7 @@ async function handleGetEmployees() {
             ? row[idx.level]
             : null,
         group: idx.group !== -1 ? String(row[idx.group] || "").trim() : "",
+        status: idx.status !== -1 ? String(row[idx.status] || "").trim() : "Aktif",
       };
     });
     
@@ -2186,6 +2190,9 @@ async function handleAddPartner(body: any) {
       if (idx.cat !== -1 && body.category !== undefined && body.category !== "") {
         data[existingIndex][idx.cat] = body.category;
       }
+      if (idx.group !== -1 && body.group !== undefined && body.group !== "") {
+        data[existingIndex][idx.group] = body.group;
+      }
 
       const successUpdate = await updateSheetValues("channel", data);
       if (!successUpdate) {
@@ -2227,6 +2234,7 @@ async function handleAddPartner(body: any) {
   if (idx.pic !== -1) newRow[idx.pic] = body.pic || "";
   if (idx.province !== -1) newRow[idx.province] = userProvince || "";
   if (idx.area !== -1) newRow[idx.area] = userArea || "";
+  if (idx.group !== -1) newRow[idx.group] = body.group || "";
 
   const successAppend = await appendSheetRow("channel", newRow);
   if (!successAppend) {

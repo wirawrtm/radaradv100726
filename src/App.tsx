@@ -1813,16 +1813,42 @@ const Dashboard = ({
   const [tempPartnerCategory, setTempPartnerCategory] = useState("R1");
   const [tempPartnerPic, setTempPartnerPic] = useState("");
   const [tempPartnerProvince, setTempPartnerProvince] = useState("");
+  const [tempPartnerGroup, setTempPartnerGroup] = useState("Advanta");
   const [isSubmittingTempPartner, setIsSubmittingTempPartner] = useState(false);
   const [tempPartnerError, setTempPartnerError] = useState("");
   const [tempPartnerSuccess, setTempPartnerSuccess] = useState("");
 
+  const activeEmployees = useMemo(() => {
+    return (employees || []).filter((emp: any) => {
+      const status = String(emp.status || "").trim().toLowerCase();
+      // If no status is specified, treat as active. Only filter out if explicit inactive status.
+      return status === "aktif" || status === "active" || status === "" || status === "-";
+    });
+  }, [employees]);
+
   const handleAddTempPartner = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tempPartnerName.trim()) {
-      setTempPartnerError("Nama Partner harus diisi!");
+      setTempPartnerError("Nama Kiosk (Partner) wajib diisi!");
       return;
     }
+    if (!tempPartnerGroup) {
+      setTempPartnerError("Group / Divisi / Tim wajib diisi!");
+      return;
+    }
+    if (!tempPartnerCategory) {
+      setTempPartnerError("Kategori Partner wajib diisi!");
+      return;
+    }
+    if (!tempPartnerProvince) {
+      setTempPartnerError("Provinsi / Wilayah wajib diisi!");
+      return;
+    }
+    if (!tempPartnerPic) {
+      setTempPartnerError("PIC (Karyawan Aktif) wajib diisi!");
+      return;
+    }
+
     setIsSubmittingTempPartner(true);
     setTempPartnerError("");
     setTempPartnerSuccess("");
@@ -1830,13 +1856,12 @@ const Dashboard = ({
     try {
       const payload = {
         action: "addPartner",
-        id: "partner_" + Date.now(),
-        pic: tempPartnerPic || "",
+        pic: tempPartnerPic,
         name: tempPartnerName.trim(),
         category: tempPartnerCategory,
-        province: tempPartnerProvince.trim(),
-        user: userData.name,
-        group: userData?.group || "",
+        province: tempPartnerProvince,
+        group: tempPartnerGroup,
+        user: userData?.name || "anonymous",
       };
 
       const resp = await customFetch(SCRIPT_URL, {
@@ -1852,12 +1877,11 @@ const Dashboard = ({
 
       const res = await resp.json();
       if (res.status === "success") {
-        setTempPartnerSuccess(`Partner "${tempPartnerName}" berhasil ditambahkan ke sheet 'channel'!`);
+        setTempPartnerSuccess(`Partner "${tempPartnerName}" berhasil disimpan ke sheet 'channel'!`);
         setTempPartnerName("");
-        setTempPartnerProvince("");
         // Refresh partner list
         const newPartner = {
-          id: res.id || payload.id,
+          id: res.id || "partner_" + Date.now(),
           name: payload.name,
           category: payload.category,
           pic: payload.pic,
@@ -12005,9 +12029,10 @@ const Dashboard = ({
               )}
 
               <form onSubmit={handleAddTempPartner} className="space-y-4">
+                {/* 1. Kiosk */}
                 <div>
                   <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
-                    Nama Partner (Channel) <span className="text-red-500">*</span>
+                    Nama Partner (Kiosk) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -12020,17 +12045,41 @@ const Dashboard = ({
                   />
                 </div>
 
+                {/* 2. Group */}
                 <div>
                   <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
-                    Kategori Partner
+                    Group / Divisi / Tim <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={tempPartnerGroup}
+                    onChange={(e) => setTempPartnerGroup(e.target.value)}
+                    required
+                    disabled={isSubmittingTempPartner}
+                    className="w-full h-11 bg-[#fbfaff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#181a2c] outline-none focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50"
+                  >
+                    <option value="">-- Pilih Group --</option>
+                    {["Advanta", "Vegetables", "Field Corn", "Rice", "All"].map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Category */}
+                <div>
+                  <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
+                    Kategori Partner <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={tempPartnerCategory}
                     onChange={(e) => setTempPartnerCategory(e.target.value)}
+                    required
                     disabled={isSubmittingTempPartner}
                     className="w-full h-11 bg-[#fbfaff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#181a2c] outline-none focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50"
                   >
-                    {allCategories.map((cat: string) => (
+                    <option value="">-- Pilih Kategori --</option>
+                    {(allCategories && allCategories.length > 0 ? allCategories : ["Distributor", "R1", "R2", "RTL"]).map((cat: string) => (
                       <option key={cat} value={cat}>
                         {cat}
                       </option>
@@ -12038,18 +12087,41 @@ const Dashboard = ({
                   </select>
                 </div>
 
+                {/* 4. Province */}
                 <div>
                   <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
-                    PIC (Employee)
+                    Provinsi / Wilayah <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={tempPartnerProvince}
+                    onChange={(e) => setTempPartnerProvince(e.target.value)}
+                    required
+                    disabled={isSubmittingTempPartner}
+                    className="w-full h-11 bg-[#fbfaff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#181a2c] outline-none focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50"
+                  >
+                    <option value="">-- Pilih Provinsi --</option>
+                    {(availableProvinces && availableProvinces.length > 0 ? availableProvinces : ["Jawa Timur", "Jawa Tengah", "Jawa Barat"]).map((prov: string) => (
+                      <option key={prov} value={prov}>
+                        {prov}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 5. PIC */}
+                <div>
+                  <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
+                    PIC (Karyawan Aktif) <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={tempPartnerPic}
                     onChange={(e) => setTempPartnerPic(e.target.value)}
+                    required
                     disabled={isSubmittingTempPartner}
                     className="w-full h-11 bg-[#fbfaff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#181a2c] outline-none focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50"
                   >
                     <option value="">-- Pilih PIC --</option>
-                    {employees.map((emp: any) => (
+                    {activeEmployees.map((emp: any) => (
                       <option key={emp.name} value={emp.name}>
                         {emp.name} ({emp.position || "Staff"})
                       </option>
@@ -12057,25 +12129,11 @@ const Dashboard = ({
                   </select>
                 </div>
 
-                <div>
-                  <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
-                    Provinsi / Wilayah (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={tempPartnerProvince}
-                    onChange={(e) => setTempPartnerProvince(e.target.value)}
-                    disabled={isSubmittingTempPartner}
-                    placeholder="Contoh: JAWA BARAT"
-                    className="w-full h-11 bg-[#fbfaff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#181a2c] outline-none focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-gray-400 disabled:opacity-50"
-                  />
-                </div>
-
                 <button
                   type="submit"
-                  disabled={isSubmittingTempPartner || !tempPartnerName.trim()}
+                  disabled={isSubmittingTempPartner || !tempPartnerName.trim() || !tempPartnerCategory || !tempPartnerPic || !tempPartnerProvince || !tempPartnerGroup}
                   className={`w-full h-11 rounded-full font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.98] ${
-                    isSubmittingTempPartner || !tempPartnerName.trim()
+                    isSubmittingTempPartner || !tempPartnerName.trim() || !tempPartnerCategory || !tempPartnerPic || !tempPartnerProvince || !tempPartnerGroup
                       ? "bg-[#e0e0fa] text-[#8E94B7] cursor-not-allowed"
                       : "bg-[#181a2c] text-white hover:bg-[#252841] shadow-[0_4px_14px_rgba(24,26,44,0.15)]"
                   }`}
@@ -12100,11 +12158,12 @@ const Dashboard = ({
                   </h2>
                 </div>
 
-                <div className="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar">
+                <div className="overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar">
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-[#fbfaff] sticky top-0 z-10 shadow-sm">
                         <th className="px-5 py-3 text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider border-b border-[#f1f5f9]">Nama Partner</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider border-b border-[#f1f5f9]">Group</th>
                         <th className="px-5 py-3 text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider border-b border-[#f1f5f9]">Kategori</th>
                         <th className="px-5 py-3 text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider border-b border-[#f1f5f9]">PIC</th>
                         <th className="px-5 py-3 text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider border-b border-[#f1f5f9]">Wilayah</th>
@@ -12113,15 +12172,18 @@ const Dashboard = ({
                     <tbody className="divide-y divide-[#f1f5f9]">
                       {kiosks.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="px-5 py-8 text-center text-xs text-[#8E94B7] font-semibold">
+                          <td colSpan={5} className="px-5 py-8 text-center text-xs text-[#8E94B7] font-semibold">
                             Tidak ada data partner ditemukan.
                           </td>
                         </tr>
                       ) : (
                         kiosks.slice().reverse().map((kiosk: any) => (
-                          <tr key={kiosk.id} className="hover:bg-slate-50/50 transition-colors">
+                          <tr key={kiosk.id || kiosk.name} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-5 py-3.5 text-xs font-bold text-[#181a2c]">
                               {kiosk.name}
+                            </td>
+                            <td className="px-5 py-3.5 text-xs text-gray-500 font-bold">
+                              {kiosk.group || "-"}
                             </td>
                             <td className="px-5 py-3.5">
                               <span className="text-[10px] font-bold bg-[#154be2]/10 text-primary px-2.5 py-1 rounded-full border border-[#154be2]/5">
@@ -12856,7 +12918,7 @@ export default function App() {
             </button>
           )}
 
-          {showPartnerTab && (
+          {userData && (
             <button
               onClick={() => setActiveTab("partner_temp")}
               className={`flex items-center justify-center lg:justify-start gap-3 h-13 rounded-xl transition-all ${activeTab === "partner_temp" ? "bg-[#154be2]/15 text-[#154be2] shadow-[0_4px_12px_rgba(21,75,226,0.12)] ring-1 ring-[#154be2]/15 font-bold" : "text-[#8E94B7] hover:bg-white/40 hover:text-[#181a2c]"}`}
@@ -12867,7 +12929,7 @@ export default function App() {
                 person_add
               </span>
               <span className={`font-semibold text-xs hidden ${isSidebarExpanded ? "lg:block" : ""}`}>
-                Partner Input (Temp)
+                Input Partner (Temp)
               </span>
             </button>
           )}
@@ -13049,7 +13111,7 @@ export default function App() {
               </button>
             )}
 
-            {showPartnerTab && (
+            {userData && (
               <button
                 onClick={() => setActiveTab("partner_temp")}
                 className={`flex flex-col items-center justify-center h-11 px-2.5 rounded-xl transition-all duration-200 select-none ${
