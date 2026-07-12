@@ -2346,7 +2346,7 @@ async function handleUpdatePartner(body: any) {
       data[rowIndex][idx.pic] = body.pic;
     }
     if (idx.province !== -1) {
-      data[rowIndex][idx.province] = userProvince || data[rowIndex][idx.province] || "";
+      data[rowIndex][idx.province] = body.province || userProvince || data[rowIndex][idx.province] || "";
     }
     if (idx.area !== -1) {
       data[rowIndex][idx.area] = userArea || data[rowIndex][idx.area] || "";
@@ -2356,6 +2356,9 @@ async function handleUpdatePartner(body: any) {
     }
     if (idx.cat !== -1 && body.category !== undefined && body.category !== "") {
       data[rowIndex][idx.cat] = body.category;
+    }
+    if (idx.group !== -1 && body.group !== undefined && body.group !== "") {
+      data[rowIndex][idx.group] = body.group;
     }
     const successUpdate = await updateSheetValues("channel", data);
     if (!successUpdate) {

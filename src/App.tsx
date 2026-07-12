@@ -848,15 +848,18 @@ const PartnerEditModal = ({
   item,
   onSave,
   isSaving,
-  availablePics,
+  activeEmployees,
+  allProvinces,
   allCategories,
 }) => {
   const [newPic, setNewPic] = useState("");
   const [partnerName, setPartnerName] = useState("");
   const [category, setCategory] = useState("");
+  const [province, setProvince] = useState("");
+  const [group, setGroup] = useState("");
 
   const categoriesToDisplay = useMemo(() => {
-    const defaultCategories = ["Distributor", "R1", "R2"];
+    const defaultCategories = ["Distributor", "R1", "R2", "RTL"];
     const merged = [...defaultCategories];
     if (allCategories && Array.isArray(allCategories)) {
       allCategories.forEach((cat) => {
@@ -877,12 +880,20 @@ const PartnerEditModal = ({
     if (item) {
       const rawPic = String(item.pic || "").trim();
       const cleanRawPic = cleanForMatch(rawPic);
-      const matchedPic = availablePics?.find((p) => cleanForMatch(p) === cleanRawPic) || rawPic;
+      const matchedPic = activeEmployees?.find((p) => cleanForMatch(p.name) === cleanRawPic)?.name || rawPic;
       setNewPic(matchedPic);
       setPartnerName(String(item.name || "").trim());
       setCategory(String(item.category || "").trim());
+      setProvince(String(item.province || item.area || "").trim());
+      setGroup(String(item.group || "").trim());
+    } else {
+      setNewPic("");
+      setPartnerName("");
+      setCategory("");
+      setProvince("");
+      setGroup("Advanta");
     }
-  }, [item, availablePics]);
+  }, [item, activeEmployees]);
 
   if (!isOpen) return null;
 
@@ -891,15 +902,24 @@ const PartnerEditModal = ({
   const handleSave = () => {
     onSave(isAdd ? null : item.id, newPic, {
       isAdd,
-      name: partnerName,
-      category: category,
+      name: partnerName.trim(),
+      category: category.trim(),
+      province: province.trim(),
+      group: group.trim(),
       originalName: isAdd ? "" : (item?.name || ""),
     });
   };
 
+  const isFormValid =
+    partnerName.trim() !== "" &&
+    category.trim() !== "" &&
+    province.trim() !== "" &&
+    group.trim() !== "" &&
+    newPic.trim() !== "";
+
   return (
     <div className="fixed inset-0 z-[110] bg-[#181a2c]/50 backdrop-blur-md flex items-center justify-center p-6">
-      <div className="bg-white w-full max-w-[360px] rounded-[24px] p-8 shadow-2xl border border-[#edecff] animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white w-full max-w-[380px] rounded-[24px] p-8 shadow-2xl border border-[#edecff] animate-in fade-in zoom-in-95 duration-200">
         <div className="size-14 bg-[#edecff] rounded-full flex items-center justify-center text-primary mb-5">
           <span className="material-symbols-outlined text-[28px]">
             {isAdd ? "add_business" : "manage_accounts"}
@@ -913,29 +933,56 @@ const PartnerEditModal = ({
         </p>
 
         <div className="space-y-4 mb-6">
+          {/* 1. Kiosk Name */}
           <div>
             <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
-              Nama Partner
+              Nama Partner (Kiosk) <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={partnerName}
               onChange={(e) => setPartnerName(e.target.value)}
-              className="w-full h-12 bg-[#fbf8ff] border border-[#edecff] focus:border-primary focus:ring-1 focus:ring-primary/10 rounded-full px-5 text-sm font-semibold text-[#111] outline-none transition-all"
+              className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] focus:border-primary focus:ring-1 focus:ring-primary/10 rounded-xl px-4 text-xs font-bold text-[#111] outline-none transition-all"
               placeholder="Contoh: Kios Mandiri Tani"
               required
             />
           </div>
 
+          {/* 2. Group / Division / Team */}
           <div>
             <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
-              Kategori Partner
+              Group / Divisi / Tim <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <select
+                value={group}
+                onChange={(e) => setGroup(e.target.value)}
+                className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] focus:border-primary focus:ring-1 focus:ring-primary/10 rounded-xl px-4 text-xs font-bold text-[#111] outline-none transition-all appearance-none pr-10"
+                required
+              >
+                <option value="">-- Pilih Group --</option>
+                {["Advanta", "Vegetables", "Field Corn", "Rice", "All"].map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-[#8E94B7] pointer-events-none text-lg">
+                expand_more
+              </span>
+            </div>
+          </div>
+
+          {/* 3. Category */}
+          <div>
+            <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
+              Kategori Partner <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full h-12 bg-[#fbf8ff] border border-[#edecff] focus:border-primary focus:ring-1 focus:ring-primary/10 rounded-full px-5 text-xs font-semibold text-[#111] outline-none transition-all appearance-none pr-10"
+                className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] focus:border-primary focus:ring-1 focus:ring-primary/10 rounded-xl px-4 text-xs font-bold text-[#111] outline-none transition-all appearance-none pr-10"
                 required
               >
                 <option value="">-- Pilih Kategori --</option>
@@ -951,20 +998,47 @@ const PartnerEditModal = ({
             </div>
           </div>
 
+          {/* 4. Province */}
           <div>
             <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
-              PIC / Penanggung Jawab
+              Provinsi / Wilayah <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <select
+                value={province}
+                onChange={(e) => setProvince(e.target.value)}
+                className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] focus:border-primary focus:ring-1 focus:ring-primary/10 rounded-xl px-4 text-xs font-bold text-[#111] outline-none transition-all appearance-none pr-10"
+                required
+              >
+                <option value="">-- Pilih Provinsi --</option>
+                {(allProvinces && allProvinces.length > 0 ? allProvinces : ["Jawa Timur", "Jawa Tengah", "Jawa Barat"]).map((prov, idx) => (
+                  <option key={idx} value={prov}>
+                    {prov}
+                  </option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-[#8E94B7] pointer-events-none text-lg">
+                expand_more
+              </span>
+            </div>
+          </div>
+
+          {/* 5. PIC */}
+          <div>
+            <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
+              PIC (Karyawan Aktif) <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <select
                 value={newPic}
                 onChange={(e) => setNewPic(e.target.value)}
-                className="w-full h-12 bg-[#fbf8ff] border border-[#edecff] rounded-full px-5 font-semibold text-xs text-[#111] outline-none focus:border-primary transition-all appearance-none pr-10"
+                className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all appearance-none pr-10"
+                required
               >
-                <option value="">-- Tanpa PIC --</option>
-                {availablePics?.map((picName, idx) => (
-                  <option key={idx} value={picName}>
-                    {picName}
+                <option value="">-- Pilih PIC --</option>
+                {activeEmployees?.map((emp, idx) => (
+                  <option key={idx} value={emp.name}>
+                    {emp.name} ({emp.position || "Staff"})
                   </option>
                 ))}
               </select>
@@ -978,14 +1052,18 @@ const PartnerEditModal = ({
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-3 text-[#635b6e] font-semibold text-xs uppercase tracking-wider hover:bg-[#f4f2ff] rounded-full transition-colors"
+            className="flex-1 py-3 text-[#635b6e] font-semibold text-xs uppercase tracking-wider hover:bg-[#f4f2ff] rounded-full transition-colors cursor-pointer"
           >
             Batal
           </button>
           <button
             onClick={handleSave}
-            disabled={isSaving || !partnerName.trim() || !category.trim()}
-            className="flex-[2] py-3 bg-gradient-to-r from-primary to-cyan-400 text-white rounded-full font-semibold text-xs uppercase tracking-wider shadow-[0_4px_12px_rgba(21,75,226,0.25)] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isSaving || !isFormValid}
+            className={`flex-[2] py-3 text-white rounded-full font-semibold text-xs uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer ${
+              isSaving || !isFormValid
+                ? "bg-[#e0e0fa] text-[#8E94B7] cursor-not-allowed"
+                : "bg-gradient-to-r from-primary to-cyan-400 shadow-[0_4px_12px_rgba(21,75,226,0.25)]"
+            }`}
           >
             {isSaving ? "Saving..." : "Simpan"}
           </button>
@@ -1808,15 +1886,7 @@ const Dashboard = ({
   }>({ isOpen: false, item: null });
   const [employeesRefreshKey, setEmployeesRefreshKey] = useState(0);
 
-  // State for Temporary Manual Partner Input Page
-  const [tempPartnerName, setTempPartnerName] = useState("");
-  const [tempPartnerCategory, setTempPartnerCategory] = useState("R1");
-  const [tempPartnerPic, setTempPartnerPic] = useState("");
-  const [tempPartnerProvince, setTempPartnerProvince] = useState("");
-  const [tempPartnerGroup, setTempPartnerGroup] = useState("Advanta");
-  const [isSubmittingTempPartner, setIsSubmittingTempPartner] = useState(false);
-  const [tempPartnerError, setTempPartnerError] = useState("");
-  const [tempPartnerSuccess, setTempPartnerSuccess] = useState("");
+
 
   const activeEmployees = useMemo(() => {
     return (employees || []).filter((emp: any) => {
@@ -1826,80 +1896,7 @@ const Dashboard = ({
     });
   }, [employees]);
 
-  const handleAddTempPartner = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!tempPartnerName.trim()) {
-      setTempPartnerError("Nama Kiosk (Partner) wajib diisi!");
-      return;
-    }
-    if (!tempPartnerGroup) {
-      setTempPartnerError("Group / Divisi / Tim wajib diisi!");
-      return;
-    }
-    if (!tempPartnerCategory) {
-      setTempPartnerError("Kategori Partner wajib diisi!");
-      return;
-    }
-    if (!tempPartnerProvince) {
-      setTempPartnerError("Provinsi / Wilayah wajib diisi!");
-      return;
-    }
-    if (!tempPartnerPic) {
-      setTempPartnerError("PIC (Karyawan Aktif) wajib diisi!");
-      return;
-    }
 
-    setIsSubmittingTempPartner(true);
-    setTempPartnerError("");
-    setTempPartnerSuccess("");
-
-    try {
-      const payload = {
-        action: "addPartner",
-        pic: tempPartnerPic,
-        name: tempPartnerName.trim(),
-        category: tempPartnerCategory,
-        province: tempPartnerProvince,
-        group: tempPartnerGroup,
-        user: userData?.name || "anonymous",
-      };
-
-      const resp = await customFetch(SCRIPT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify(payload),
-      });
-
-      const contentType = resp.headers.get("content-type");
-      if (!resp.ok || !contentType || !contentType.includes("application/json")) {
-        throw new Error("Respon server tidak valid.");
-      }
-
-      const res = await resp.json();
-      if (res.status === "success") {
-        setTempPartnerSuccess(`Partner "${tempPartnerName}" berhasil disimpan ke sheet 'channel'!`);
-        setTempPartnerName("");
-        // Refresh partner list
-        const newPartner = {
-          id: res.id || "partner_" + Date.now(),
-          name: payload.name,
-          category: payload.category,
-          pic: payload.pic,
-          upline: "",
-          area: payload.province || "",
-          group: payload.group || "",
-        };
-        setKiosks((prev: any) => [...prev, newPartner]);
-      } else {
-        throw new Error(res.message || "Gagal menambahkan partner.");
-      }
-    } catch (err: any) {
-      console.error(err);
-      setTempPartnerError(err.message || "Terjadi kesalahan saat menyambung ke server.");
-    } finally {
-      setIsSubmittingTempPartner(false);
-    }
-  };
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>(
     {},
   );
@@ -3536,8 +3533,8 @@ const Dashboard = ({
         originalName: additionalData.originalName || "",
         category: additionalData.category || "",
         user: userData.name,
-        group: userData?.group || "",
-        province: userData?.province || "",
+        group: additionalData.group || userData?.group || "",
+        province: additionalData.province || userData?.province || "",
       };
 
       const resp = await customFetch(SCRIPT_URL, {
@@ -3560,8 +3557,9 @@ const Dashboard = ({
             category: payload.category,
             pic: payload.pic,
             upline: "",
-            area: payload.province || "",
-            group: payload.group || "",
+            province: payload.province,
+            area: payload.province,
+            group: payload.group,
           };
           setKiosks((prev) => [...prev, newPartner]);
         } else {
@@ -3578,6 +3576,9 @@ const Dashboard = ({
                   name: payload.name || k.name,
                   category: payload.category || k.category,
                   pic: payload.pic,
+                  province: payload.province || k.province || "",
+                  area: payload.province || k.area || "",
+                  group: payload.group || k.group || "",
                 };
               }
               return k;
@@ -10175,9 +10176,27 @@ const Dashboard = ({
                         <p className="font-semibold text-xs text-[#181a2c] leading-tight mb-0.5">
                           {channel.name}
                         </p>
-                        <p className="text-[10px] font-semibold text-[#8E94B7]">
+                        <p className="text-[10px] font-bold text-[#8E94B7] flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[13px] text-[#8E94B7]/80">person</span>
                           {normalizeName(channel.pic) || "-"}
                         </p>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {channel.category && (
+                            <span className="text-[9px] font-extrabold bg-[#154be2]/10 text-primary px-2.5 py-0.5 rounded-full uppercase border border-[#154be2]/5">
+                              {channel.category}
+                            </span>
+                          )}
+                          {channel.group && (
+                            <span className="text-[9px] font-extrabold bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full uppercase">
+                              {channel.group}
+                            </span>
+                          )}
+                          {(channel.province || channel.area) && (
+                            <span className="text-[9px] font-extrabold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full uppercase border border-emerald-100/30">
+                              {channel.province || channel.area}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         <button
@@ -10218,9 +10237,8 @@ const Dashboard = ({
             onClose={() => setPartnerEditModal({ isOpen: false, item: null })}
             onSave={handleEditPartnerSave}
             isSaving={isActionLoading}
-            availablePics={[...teamMembers].sort((a, b) =>
-              compareMembersByLevel(a, b, teamLevels, teamPositions, userData),
-            )}
+            activeEmployees={activeEmployees}
+            allProvinces={availableProvinces}
             allCategories={allCategories}
           />
           <PartnerDeleteModal
@@ -11995,222 +12013,7 @@ const Dashboard = ({
         </div>
       )}
 
-      {activeTab === "partner_temp" && (
-        <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-          <div className="mb-6 ml-1 flex flex-col gap-1">
-            <h1 className="text-xl font-bold text-[#181a2c] tracking-tight">
-              Input Partner Baru <span className="text-primary font-bold">(Temporary)</span>
-            </h1>
-            <p className="text-[#8E94B7] text-xs font-semibold">
-              Koneksi langsung ke Sheet <strong className="text-primary">channel</strong> untuk menambahkan atau memperbarui data partner manual.
-            </p>
-          </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Form Column */}
-            <div className="lg:col-span-1 bg-white rounded-[24px] shadow-[0_12px_32px_rgba(21,75,226,0.03)] border border-[#154be2]/5 p-6 h-fit">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-[#181a2c] mb-4 pb-2 border-b border-[#f1f5f9] flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px] text-primary">edit_note</span>
-                Formulir Partner Baru
-              </h2>
-
-              {tempPartnerError && (
-                <div className="mb-4 bg-red-50 border border-red-200 text-red-800 rounded-2xl px-4 py-3 text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-                  <span className="material-symbols-outlined text-red-600">error</span>
-                  {tempPartnerError}
-                </div>
-              )}
-
-              {tempPartnerSuccess && (
-                <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl px-4 py-3 text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-                  <span className="material-symbols-outlined text-emerald-600">check_circle</span>
-                  {tempPartnerSuccess}
-                </div>
-              )}
-
-              <form onSubmit={handleAddTempPartner} className="space-y-4">
-                {/* 1. Kiosk */}
-                <div>
-                  <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
-                    Nama Partner (Kiosk) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={tempPartnerName}
-                    onChange={(e) => setTempPartnerName(e.target.value)}
-                    disabled={isSubmittingTempPartner}
-                    placeholder="Contoh: Toko Berkah Tani"
-                    className="w-full h-11 bg-[#fbfaff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#181a2c] outline-none focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-gray-400 disabled:opacity-50"
-                  />
-                </div>
-
-                {/* 2. Group */}
-                <div>
-                  <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
-                    Group / Divisi / Tim <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={tempPartnerGroup}
-                    onChange={(e) => setTempPartnerGroup(e.target.value)}
-                    required
-                    disabled={isSubmittingTempPartner}
-                    className="w-full h-11 bg-[#fbfaff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#181a2c] outline-none focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50"
-                  >
-                    <option value="">-- Pilih Group --</option>
-                    {["Advanta", "Vegetables", "Field Corn", "Rice", "All"].map((g) => (
-                      <option key={g} value={g}>
-                        {g}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 3. Category */}
-                <div>
-                  <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
-                    Kategori Partner <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={tempPartnerCategory}
-                    onChange={(e) => setTempPartnerCategory(e.target.value)}
-                    required
-                    disabled={isSubmittingTempPartner}
-                    className="w-full h-11 bg-[#fbfaff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#181a2c] outline-none focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50"
-                  >
-                    <option value="">-- Pilih Kategori --</option>
-                    {(allCategories && allCategories.length > 0 ? allCategories : ["Distributor", "R1", "R2", "RTL"]).map((cat: string) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 4. Province */}
-                <div>
-                  <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
-                    Provinsi / Wilayah <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={tempPartnerProvince}
-                    onChange={(e) => setTempPartnerProvince(e.target.value)}
-                    required
-                    disabled={isSubmittingTempPartner}
-                    className="w-full h-11 bg-[#fbfaff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#181a2c] outline-none focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50"
-                  >
-                    <option value="">-- Pilih Provinsi --</option>
-                    {(availableProvinces && availableProvinces.length > 0 ? availableProvinces : ["Jawa Timur", "Jawa Tengah", "Jawa Barat"]).map((prov: string) => (
-                      <option key={prov} value={prov}>
-                        {prov}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 5. PIC */}
-                <div>
-                  <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
-                    PIC (Karyawan Aktif) <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={tempPartnerPic}
-                    onChange={(e) => setTempPartnerPic(e.target.value)}
-                    required
-                    disabled={isSubmittingTempPartner}
-                    className="w-full h-11 bg-[#fbfaff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#181a2c] outline-none focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50"
-                  >
-                    <option value="">-- Pilih PIC --</option>
-                    {activeEmployees.map((emp: any) => (
-                      <option key={emp.name} value={emp.name}>
-                        {emp.name} ({emp.position || "Staff"})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSubmittingTempPartner || !tempPartnerName.trim() || !tempPartnerCategory || !tempPartnerPic || !tempPartnerProvince || !tempPartnerGroup}
-                  className={`w-full h-11 rounded-full font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.98] ${
-                    isSubmittingTempPartner || !tempPartnerName.trim() || !tempPartnerCategory || !tempPartnerPic || !tempPartnerProvince || !tempPartnerGroup
-                      ? "bg-[#e0e0fa] text-[#8E94B7] cursor-not-allowed"
-                      : "bg-[#181a2c] text-white hover:bg-[#252841] shadow-[0_4px_14px_rgba(24,26,44,0.15)]"
-                  }`}
-                >
-                  {isSubmittingTempPartner ? (
-                    <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
-                  ) : (
-                    <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                  )}
-                  {isSubmittingTempPartner ? "Menyimpan..." : "Simpan Partner"}
-                </button>
-              </form>
-            </div>
-
-            {/* List Column */}
-            <div className="lg:col-span-2 bg-white rounded-[24px] shadow-[0_12px_32px_rgba(21,75,226,0.03)] border border-[#154be2]/5 overflow-hidden flex flex-col justify-between">
-              <div>
-                <div className="p-6 border-b border-[#f1f5f9] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-[#181a2c] flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[18px] text-primary">contacts</span>
-                    Daftar Partner Saat Ini ({kiosks.length})
-                  </h2>
-                </div>
-
-                <div className="overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-[#fbfaff] sticky top-0 z-10 shadow-sm">
-                        <th className="px-5 py-3 text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider border-b border-[#f1f5f9]">Nama Partner</th>
-                        <th className="px-5 py-3 text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider border-b border-[#f1f5f9]">Group</th>
-                        <th className="px-5 py-3 text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider border-b border-[#f1f5f9]">Kategori</th>
-                        <th className="px-5 py-3 text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider border-b border-[#f1f5f9]">PIC</th>
-                        <th className="px-5 py-3 text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider border-b border-[#f1f5f9]">Wilayah</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#f1f5f9]">
-                      {kiosks.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="px-5 py-8 text-center text-xs text-[#8E94B7] font-semibold">
-                            Tidak ada data partner ditemukan.
-                          </td>
-                        </tr>
-                      ) : (
-                        kiosks.slice().reverse().map((kiosk: any) => (
-                          <tr key={kiosk.id || kiosk.name} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="px-5 py-3.5 text-xs font-bold text-[#181a2c]">
-                              {kiosk.name}
-                            </td>
-                            <td className="px-5 py-3.5 text-xs text-gray-500 font-bold">
-                              {kiosk.group || "-"}
-                            </td>
-                            <td className="px-5 py-3.5">
-                              <span className="text-[10px] font-bold bg-[#154be2]/10 text-primary px-2.5 py-1 rounded-full border border-[#154be2]/5">
-                                {kiosk.category || "N/A"}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3.5 text-xs text-gray-600 font-semibold">
-                              {kiosk.pic || "-"}
-                            </td>
-                            <td className="px-5 py-3.5 text-xs text-gray-500 font-semibold">
-                              {kiosk.area || "-"}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="p-4 border-t border-[#f1f5f9] bg-slate-50/50 text-[10px] text-[#8E94B7] font-black uppercase tracking-wider text-right">
-                Menampilkan data partner diurutkan dari yang terbaru ditambahkan.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       <LogoutConfirmModal
         isOpen={isLogoutModalOpen}
@@ -12918,21 +12721,7 @@ export default function App() {
             </button>
           )}
 
-          {userData && (
-            <button
-              onClick={() => setActiveTab("partner_temp")}
-              className={`flex items-center justify-center lg:justify-start gap-3 h-13 rounded-xl transition-all ${activeTab === "partner_temp" ? "bg-[#154be2]/15 text-[#154be2] shadow-[0_4px_12px_rgba(21,75,226,0.12)] ring-1 ring-[#154be2]/15 font-bold" : "text-[#8E94B7] hover:bg-white/40 hover:text-[#181a2c]"}`}
-            >
-              <span
-                className={`material-symbols-outlined ml-0 lg:ml-4 ${activeTab === "partner_temp" ? "font-normal" : ""}`}
-              >
-                person_add
-              </span>
-              <span className={`font-semibold text-xs hidden ${isSidebarExpanded ? "lg:block" : ""}`}>
-                Input Partner (Temp)
-              </span>
-            </button>
-          )}
+
 
           {showAccessTab && (
             <button
@@ -13111,25 +12900,7 @@ export default function App() {
               </button>
             )}
 
-            {userData && (
-              <button
-                onClick={() => setActiveTab("partner_temp")}
-                className={`flex flex-col items-center justify-center h-11 px-2.5 rounded-xl transition-all duration-200 select-none ${
-                  activeTab === "partner_temp"
-                    ? "bg-[#154be2]/12 text-[#154be2] font-extrabold"
-                    : "text-[#8E94B7] hover:text-[#181a2c]"
-                }`}
-              >
-                <span
-                  className={`material-symbols-outlined text-[19px] leading-tight ${activeTab === "partner_temp" ? "font-semibold" : ""}`}
-                >
-                  person_add
-                </span>
-                <span className="text-[7.5px] font-bold uppercase tracking-wider leading-none mt-0.5">
-                  P. Temp
-                </span>
-              </button>
-            )}
+
 
             {showAccessTab && (
               <button
