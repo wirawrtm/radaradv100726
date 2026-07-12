@@ -851,6 +851,7 @@ const PartnerEditModal = ({
   activeEmployees,
   allProvinces,
   allCategories,
+  userData,
 }) => {
   const [newPic, setNewPic] = useState("");
   const [partnerName, setPartnerName] = useState("");
@@ -877,6 +878,9 @@ const PartnerEditModal = ({
   }, [allCategories]);
 
   useEffect(() => {
+    const userProv = String(userData?.province || userData?.area || "").trim();
+    const userGroup = String(userData?.group || "").trim() || "Advanta";
+
     if (item) {
       const rawPic = String(item.pic || "").trim();
       const cleanRawPic = cleanForMatch(rawPic);
@@ -884,16 +888,16 @@ const PartnerEditModal = ({
       setNewPic(matchedPic);
       setPartnerName(String(item.name || "").trim());
       setCategory(String(item.category || "").trim());
-      setProvince(String(item.province || item.area || "").trim());
-      setGroup(String(item.group || "").trim());
+      setProvince(userProv);
+      setGroup(userGroup);
     } else {
       setNewPic("");
       setPartnerName("");
       setCategory("");
-      setProvince("");
-      setGroup("Advanta");
+      setProvince(userProv);
+      setGroup(userGroup);
     }
-  }, [item, activeEmployees]);
+  }, [item, activeEmployees, userData]);
 
   if (!isOpen) return null;
 
@@ -948,30 +952,7 @@ const PartnerEditModal = ({
             />
           </div>
 
-          {/* 2. Group / Division / Team */}
-          <div>
-            <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
-              Group / Divisi / Tim <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <select
-                value={group}
-                onChange={(e) => setGroup(e.target.value)}
-                className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] focus:border-primary focus:ring-1 focus:ring-primary/10 rounded-xl px-4 text-xs font-bold text-[#111] outline-none transition-all appearance-none pr-10"
-                required
-              >
-                <option value="">-- Pilih Group --</option>
-                {["Advanta", "Vegetables", "Field Corn", "Rice", "All"].map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-[#8E94B7] pointer-events-none text-lg">
-                expand_more
-              </span>
-            </div>
-          </div>
+
 
           {/* 3. Category */}
           <div>
@@ -998,30 +979,7 @@ const PartnerEditModal = ({
             </div>
           </div>
 
-          {/* 4. Province */}
-          <div>
-            <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 mb-1.5 block">
-              Provinsi / Wilayah <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <select
-                value={province}
-                onChange={(e) => setProvince(e.target.value)}
-                className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] focus:border-primary focus:ring-1 focus:ring-primary/10 rounded-xl px-4 text-xs font-bold text-[#111] outline-none transition-all appearance-none pr-10"
-                required
-              >
-                <option value="">-- Pilih Provinsi --</option>
-                {(allProvinces && allProvinces.length > 0 ? allProvinces : ["Jawa Timur", "Jawa Tengah", "Jawa Barat"]).map((prov, idx) => (
-                  <option key={idx} value={prov}>
-                    {prov}
-                  </option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-[#8E94B7] pointer-events-none text-lg">
-                expand_more
-              </span>
-            </div>
-          </div>
+
 
           {/* 5. PIC */}
           <div>
@@ -2426,6 +2384,12 @@ const Dashboard = ({
     computedTeamProfiles,
     employees,
   ]);
+
+  const myActiveSubordinates = useMemo(() => {
+    return activeEmployees.filter((emp: any) =>
+      teamMembers.some((m: string) => cleanForMatch(m) === cleanForMatch(emp.name))
+    );
+  }, [activeEmployees, teamMembers]);
 
   const normalizeName = useCallback(
     (nameStr: string) => {
@@ -10237,9 +10201,10 @@ const Dashboard = ({
             onClose={() => setPartnerEditModal({ isOpen: false, item: null })}
             onSave={handleEditPartnerSave}
             isSaving={isActionLoading}
-            activeEmployees={activeEmployees}
+            activeEmployees={myActiveSubordinates}
             allProvinces={availableProvinces}
             allCategories={allCategories}
+            userData={userData}
           />
           <PartnerDeleteModal
             isOpen={partnerDeleteModal.isOpen}
