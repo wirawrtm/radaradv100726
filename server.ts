@@ -394,7 +394,18 @@ function invalidateCache(sheetName: string) {
 
 // Fetch helper from a specified sheet
 async function getSheetValues(sheetName: string): Promise<any[][] | null> {
-  if (!isDirectConfigured) throw new Error("API not configured, fallback to AppScript");
+  if (!isDirectConfigured) {
+    initLocalDb();
+    if (fs.existsSync(LOCAL_DB_PATH)) {
+      try {
+        const db = JSON.parse(fs.readFileSync(LOCAL_DB_PATH, "utf8"));
+        return db[sheetName] || [];
+      } catch (e) {
+        console.error(`Error reading local db for ${sheetName}:`, e);
+      }
+    }
+    return [];
+  }
 
   const sheets = getSheetsClient();
   if (!sheets) return null;
@@ -450,7 +461,22 @@ async function updateSheetValues(
     return sanitizedRow;
   });
 
-  if (!isDirectConfigured) throw new Error("API not configured, fallback to AppScript");
+  if (!isDirectConfigured) {
+    initLocalDb();
+    try {
+      let db: Record<string, any[][]> = {};
+      if (fs.existsSync(LOCAL_DB_PATH)) {
+        db = JSON.parse(fs.readFileSync(LOCAL_DB_PATH, "utf8"));
+      }
+      db[sheetName] = sanitizedValues;
+      fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(db, null, 2), "utf8");
+      invalidateCache(sheetName);
+      return true;
+    } catch (e) {
+      console.error(`Error updating local db for ${sheetName}:`, e);
+      return false;
+    }
+  }
 
   const sheets = getSheetsClient();
   if (!sheets) return false;
@@ -481,7 +507,25 @@ async function appendSheetRow(
 ): Promise<boolean> {
   const sanitizedRow = (rowValues || []).map(cell => (cell === undefined || cell === null ? "" : cell));
 
-  if (!isDirectConfigured) throw new Error("API not configured, fallback to AppScript");
+  if (!isDirectConfigured) {
+    initLocalDb();
+    try {
+      let db: Record<string, any[][]> = {};
+      if (fs.existsSync(LOCAL_DB_PATH)) {
+        db = JSON.parse(fs.readFileSync(LOCAL_DB_PATH, "utf8"));
+      }
+      if (!db[sheetName]) {
+        db[sheetName] = [];
+      }
+      db[sheetName].push(sanitizedRow);
+      fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(db, null, 2), "utf8");
+      invalidateCache(sheetName);
+      return true;
+    } catch (e) {
+      console.error(`Error appending to local db for ${sheetName}:`, e);
+      return false;
+    }
+  }
 
   const sheets = getSheetsClient();
   if (!sheets) return false;
@@ -709,6 +753,11 @@ async function handleGetChannels(user: string) {
 
   const empData = await getSheetValues("employee");
   let authorizedPICs = [lowerUser];
+  let isBusinessAnalyst =
+    lowerUser === "adityawiratama" ||
+    lowerUser.includes("adityawiratama") ||
+    lowerUser === "analyst" ||
+    lowerUser === "businessanalyst";
 
   if (empData && empData.length > 0) {
     const empHeaders = empData[0];
@@ -728,7 +777,7 @@ async function handleGetChannels(user: string) {
     };
 
     const matchedRow = findEmployeeRow(user, empData);
-    let isBusinessAnalyst =
+    isBusinessAnalyst =
       lowerUser === "adityawiratama" ||
       lowerUser.includes("adityawiratama") ||
       lowerUser === "analyst" ||
@@ -947,6 +996,10 @@ async function handleGetChannels(user: string) {
             : "";
 
         const isAuth =
+          isBusinessAnalyst ||
+          picLower === "" ||
+          picLower === "tanpa pic" ||
+          picLower === "tidak ada" ||
           picLower === lowerUser ||
           (lowerUser !== "" && picLower.includes(lowerUser)) ||
           uplineLower === lowerUser ||
@@ -2102,7 +2155,48 @@ async function handleAddPartner(body: any) {
         cleanForMatch(row[idx.channel]) === cleanNewName,
     );
     if (existingIndex !== -1) {
-      throw new Error(`Partner dengan nama "${body.name}" sudah ada di database.`);
+      // Instead of throwing an error, update the existing row and return success
+      let userProvince = body.province || "";
+      let userArea = "";
+
+      if (body.pic && data.length > 1) {
+        const cleanPic = cleanForMatch(body.pic);
+        const existingPicRow = data.find(
+          (row, idxVal) =>
+            idxVal > 0 &&
+            idxVal !== existingIndex &&
+            idx.pic !== -1 &&
+            cleanForMatch(row[idx.pic]) === cleanPic
+        );
+        if (existingPicRow) {
+          if (idx.province !== -1 && existingPicRow[idx.province]) {
+            userProvince = String(existingPicRow[idx.province]).trim();
+          }
+          if (idx.area !== -1 && existingPicRow[idx.area]) {
+            userArea = String(existingPicRow[idx.area]).trim();
+          }
+        }
+      }
+
+      if (idx.pic !== -1 && body.pic !== undefined) {
+        data[existingIndex][idx.pic] = body.pic;
+      }
+      if (idx.province !== -1 && userProvince) {
+        data[existingIndex][idx.province] = userProvince;
+      }
+      if (idx.area !== -1 && userArea) {
+        data[existingIndex][idx.area] = userArea;
+      }
+      if (idx.cat !== -1 && body.category !== undefined && body.category !== "") {
+        data[existingIndex][idx.cat] = body.category;
+      }
+
+      await updateSheetValues("channel", data);
+      return {
+        status: "success",
+        id: existingIndex + 1,
+        message: `Partner "${body.name}" sudah ada di database, data berhasil diperbarui.`
+      };
     }
   }
 
@@ -2620,6 +2714,7 @@ app.all("/api", async (req, res) => {
 
 // Vite Middleware & SPA serving
 async function startServer() {
+  initLocalDb();
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
