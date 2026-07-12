@@ -2187,7 +2187,10 @@ async function handleAddPartner(body: any) {
         data[existingIndex][idx.cat] = body.category;
       }
 
-      await updateSheetValues("channel", data);
+      const successUpdate = await updateSheetValues("channel", data);
+      if (!successUpdate) {
+        throw new Error("Gagal memperbarui data partner yang sudah ada di database.");
+      }
       return {
         status: "success",
         id: existingIndex + 1,
@@ -2225,7 +2228,10 @@ async function handleAddPartner(body: any) {
   if (idx.province !== -1) newRow[idx.province] = userProvince || "";
   if (idx.area !== -1) newRow[idx.area] = userArea || "";
 
-  await appendSheetRow("channel", newRow);
+  const successAppend = await appendSheetRow("channel", newRow);
+  if (!successAppend) {
+    throw new Error("Gagal menyimpan partner baru ke database.");
+  }
   
   // Return success with the exact sheet row number as the new ID
   const newId = data.length + 1;
@@ -2343,7 +2349,10 @@ async function handleUpdatePartner(body: any) {
     if (idx.cat !== -1 && body.category !== undefined && body.category !== "") {
       data[rowIndex][idx.cat] = body.category;
     }
-    await updateSheetValues("channel", data);
+    const successUpdate = await updateSheetValues("channel", data);
+    if (!successUpdate) {
+      throw new Error("Gagal menyimpan perubahan partner ke database.");
+    }
   } else {
     console.warn("Partner row not found for update, attempting to add instead");
     return await handleAddPartner(body);
