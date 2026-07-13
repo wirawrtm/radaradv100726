@@ -554,73 +554,28 @@ const getDdaOfUser = (
 
 const EditModal = ({ isOpen, onClose, item, onSave, isSaving, allHybrids = [] }) => {
   const [newQty, setNewQty] = useState("");
-  const [lotNo, setLotNo] = useState("");
-  const [hybrid, setHybrid] = useState("");
-  const [crop, setCrop] = useState("Field Corn");
-  const [drDate, setDrDate] = useState("");
-  const [expDate, setExpDate] = useState("");
 
   useEffect(() => {
     if (item) {
       setNewQty(item.stock);
-      setLotNo(item.lot || "");
-      setHybrid(item.hybrid || "");
-      setCrop(item.crops || "Field Corn");
-
-      const parseAppDate = (str) => {
-        if (!str || str === "N/A" || str === "-") return "";
-        const parts = str.split("/");
-        if (parts.length === 3) {
-          const day = parts[0];
-          const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-          const monthIdx = months.indexOf(parts[1].toUpperCase());
-          if (monthIdx !== -1) {
-            const year = "20" + parts[2];
-            return `${year}-${String(monthIdx + 1).padStart(2, "0")}-${day.padStart(2, "0")}`;
-          }
-        }
-        const d = new Date(str);
-        if (!isNaN(d.getTime())) {
-          return d.toISOString().split("T")[0];
-        }
-        return "";
-      };
-
-      setDrDate(parseAppDate(item.drDate || item.dr_date || ""));
-      setExpDate(parseAppDate(item.expired || item.expDate || ""));
     }
   }, [item]);
 
   if (!isOpen) return null;
 
-  const formatDateToAppFormat = (dateStr) => {
-    if (!dateStr) return "N/A";
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return "N/A";
-    const day = String(date.getDate()).padStart(2, "0");
-    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-    const year = String(date.getFullYear()).substring(2);
-    return `${day}/${months[date.getMonth()]}/${year}`;
-  };
-
-  const calculateAgingInMonths = (startStr) => {
-    if (!startStr) return "-";
-    const start = new Date(startStr);
-    const end = new Date();
-    if (isNaN(start.getTime())) return "-";
-    return String(Math.round((end.getTime() - start.getTime()) / (1000 * 3600 * 24) / 30.416));
-  };
+  // Calculate prev month's quantity
+  const monthsKeys = [
+    "jan", "feb", "mar", "apr", "mei", "jun",
+    "jul", "ags", "sep", "okt", "nov", "des",
+  ];
+  const currentMonthIdx = new Date().getMonth();
+  const prevMonthIdx = currentMonthIdx === 0 ? 11 : currentMonthIdx - 1;
+  const prevMonthKey = monthsKeys[prevMonthIdx];
+  const prevMonthLabel = prevMonthKey.toUpperCase();
+  const prevVal = item && item[prevMonthKey] !== undefined ? Number(item[prevMonthKey]) : 0;
 
   const handleSaveClick = () => {
-    const updatedFields = {
-      lot: lotNo.trim().toUpperCase(),
-      hybrid: hybrid.trim(),
-      crops: crop,
-      drDate: drDate ? formatDateToAppFormat(drDate) : "N/A",
-      expired: expDate ? formatDateToAppFormat(expDate) : "N/A",
-      aging: drDate ? calculateAgingInMonths(drDate) : "-",
-    };
-    onSave(item.id, newQty, updatedFields);
+    onSave(item.id, newQty, {});
   };
 
   return (
@@ -635,114 +590,58 @@ const EditModal = ({ isOpen, onClose, item, onSave, isSaving, allHybrids = [] })
           Edit Detail LOT & Stock
         </h2>
         <p className="text-[10px] text-[#8E94B7] font-semibold uppercase tracking-wider mb-5">
-          Sesuaikan Informasi untuk LOT: {item?.lot}
+          Sesuaikan Qty untuk LOT ini
         </p>
 
         <div className="space-y-4 mb-6">
-          {/* 1. Lot No Input */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
-              Nomor Lot <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={lotNo}
-              onChange={(e) => setLotNo(e.target.value)}
-              className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all uppercase"
-              required
-            />
+          {/* Hybrid / Varietas info block */}
+          <div className="p-4 bg-[#fbf8ff] border border-[#edecff] rounded-2xl space-y-3">
+            <div className="flex justify-between items-center gap-2">
+              <span className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider">
+                Hybrid / Varietas
+              </span>
+              <span className="text-xs font-bold text-primary text-right max-w-[180px] truncate" title={item?.hybrid}>
+                {item?.hybrid}
+              </span>
+            </div>
+            
+            <div className="h-px bg-[#edecff]" />
+
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider">
+                Nomor Lot
+              </span>
+              <span className="text-xs font-mono font-bold text-[#181a2c]">
+                {item?.lot}
+              </span>
+            </div>
+
+            <div className="h-px bg-[#edecff]" />
+
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider">
+                Qty Bulan Lalu ({prevMonthLabel})
+              </span>
+              <span className="text-xs font-bold text-slate-700">
+                {prevVal} Kg
+              </span>
+            </div>
           </div>
 
-          {/* 2. Quantity Input */}
+          {/* Quantity Input */}
           <div className="space-y-1">
             <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
-              Quantity (Kg) <span className="text-red-500">*</span>
+              Quantity Baru (Kg) <span className="text-red-500">*</span>
             </label>
             <input
               type="number"
               value={newQty}
               onChange={(e) => setNewQty(e.target.value)}
+              placeholder="Masukkan quantity baru"
               className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all"
               required
+              autoFocus
             />
-          </div>
-
-          {/* 3. Hybrid / Varietas Selection */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
-              Hybrid / Varietas <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <select
-                value={hybrid}
-                onChange={(e) => setHybrid(e.target.value)}
-                className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all appearance-none pr-10"
-                required
-              >
-                <option value="">-- Pilih Hybrid --</option>
-                {allHybrids.map((hOption) => (
-                  <option key={hOption} value={hOption}>
-                    {hOption}
-                  </option>
-                ))}
-                {!allHybrids.includes(hybrid) && hybrid && (
-                  <option value={hybrid}>{hybrid}</option>
-                )}
-              </select>
-              <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-[#8E94B7] pointer-events-none text-lg">
-                expand_more
-              </span>
-            </div>
-          </div>
-
-          {/* 4. Commodity / Crop Selection */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
-              Komoditas <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <select
-                value={crop}
-                onChange={(e) => setCrop(e.target.value)}
-                className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all appearance-none pr-10"
-                required
-              >
-                {["Field Corn", "Fresh Corn", "Vegetables"].map((cOption) => (
-                  <option key={cOption} value={cOption}>
-                    {cOption}
-                  </option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-[#8E94B7] pointer-events-none text-lg">
-                expand_more
-              </span>
-            </div>
-          </div>
-
-          {/* 5. Dates Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
-                Tgl DR / Shipping
-              </label>
-              <input
-                type="date"
-                value={drDate}
-                onChange={(e) => setDrDate(e.target.value)}
-                className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] text-[#8E94B7] font-bold uppercase tracking-wider ml-1 block">
-                Expired Date
-              </label>
-              <input
-                type="date"
-                value={expDate}
-                onChange={(e) => setExpDate(e.target.value)}
-                className="w-full h-11 bg-[#fbf8ff] border border-[#edecff] rounded-xl px-4 font-bold text-xs text-[#111] outline-none focus:border-primary transition-all"
-              />
-            </div>
           </div>
         </div>
 
@@ -755,11 +654,11 @@ const EditModal = ({ isOpen, onClose, item, onSave, isSaving, allHybrids = [] })
           </button>
           <button
             onClick={handleSaveClick}
-            disabled={isSaving || !lotNo || !newQty || !hybrid || !crop}
+            disabled={isSaving || !newQty || isNaN(Number(newQty))}
             className={`flex-[2] py-3 rounded-full font-semibold text-xs uppercase tracking-wider transition-all ${
-              isSaving || !lotNo || !newQty || !hybrid || !crop
+              isSaving || !newQty || isNaN(Number(newQty))
                 ? "bg-[#e0e0fa] text-[#8E94B7] cursor-not-allowed"
-                : "bg-gradient-to-r from-primary to-cyan-400 text-white shadow-[0_4px_12px_rgba(21,75,226,0.2)] active:scale-[0.98]"
+                : "bg-gradient-to-r from-primary to-cyan-400 text-white shadow-[0_4px_12px_rgba(21,75,226,0.25)] active:scale-[0.98]"
             }`}
           >
             {isSaving ? "Saving..." : "Simpan"}
