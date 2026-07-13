@@ -1091,6 +1091,10 @@ const PartnerEditModal = ({
       province: province.trim(),
       group: group.trim(),
       originalName: isAdd ? "" : (item?.name || ""),
+      originalPic: isAdd ? "" : (item?.pic || ""),
+      originalProvince: isAdd ? "" : (item?.province || item?.area || ""),
+      originalGroup: isAdd ? "" : (item?.group || ""),
+      originalCategory: isAdd ? "" : (item?.category || ""),
     });
   };
 
@@ -3746,6 +3750,10 @@ const Dashboard = ({
         pic: newPic,
         name: additionalData.name || "",
         originalName: additionalData.originalName || "",
+        originalPic: additionalData.originalPic || "",
+        originalProvince: additionalData.originalProvince || "",
+        originalGroup: additionalData.originalGroup || "",
+        originalCategory: additionalData.originalCategory || "",
         category: additionalData.category || "",
         user: userData.name,
         group: additionalData.group || userData?.group || "",
@@ -3781,11 +3789,7 @@ const Dashboard = ({
           setKiosks((prev) =>
             prev.map((k) => {
               const matchesId = String(k.id) === String(id);
-              const matchesOriginalName =
-                payload.originalName &&
-                String(k.name).trim().toLowerCase() ===
-                  String(payload.originalName).trim().toLowerCase();
-              if (matchesId || matchesOriginalName) {
+              if (matchesId) {
                 return {
                   ...k,
                   name: payload.name || k.name,
@@ -3822,6 +3826,10 @@ const Dashboard = ({
     const targetName = partnerDeleteModal.item.name;
     const targetPic = partnerDeleteModal.item.pic || "";
     const targetId = partnerDeleteModal.item.id;
+    const targetProvince = partnerDeleteModal.item.province || partnerDeleteModal.item.area || "";
+    const targetGroup = partnerDeleteModal.item.group || "";
+    const targetCategory = partnerDeleteModal.item.category || "";
+
     setIsActionLoading(true);
     try {
       console.log("[Delete] Sending request to:", SCRIPT_URL);
@@ -3833,6 +3841,9 @@ const Dashboard = ({
           id: targetId,
           name: targetName,
           pic: targetPic,
+          originalProvince: targetProvince,
+          originalGroup: targetGroup,
+          originalCategory: targetCategory,
           user: userData.name,
         }),
       });
@@ -3847,13 +3858,17 @@ const Dashboard = ({
       const res = await resp.json();
       if (res.status === "success") {
         setKiosks((prev) =>
-          prev.filter(
-            (k) =>
-              !(
-                (targetId && String(k.id) === String(targetId)) ||
-                String(k.name).trim().toLowerCase() === String(targetName).trim().toLowerCase()
-              )
-          ),
+          prev.filter((k) => {
+            if (targetId && k.id) {
+              return String(k.id) !== String(targetId);
+            }
+            // Fallback match using name, pic, group, and province
+            const matchName = String(k.name).trim().toLowerCase() === String(targetName).trim().toLowerCase();
+            const matchPic = String(k.pic || "").trim().toLowerCase() === String(targetPic || "").trim().toLowerCase();
+            const matchProvince = String(k.province || k.area || "").trim().toLowerCase() === String(targetProvince).trim().toLowerCase();
+            const matchGroup = String(k.group || "").trim().toLowerCase() === String(targetGroup).trim().toLowerCase();
+            return !(matchName && matchPic && matchProvince && matchGroup);
+          })
         );
         setPartnerDeleteModal({ isOpen: false, item: null });
         setChannelsRefreshKey((prev) => prev + 1);

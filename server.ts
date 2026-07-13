@@ -2250,6 +2250,86 @@ async function handleAddPartner(body: any) {
   };
 }
 
+function findPartnerRowIndex(data: any[][], body: any, idx: any): number {
+  const rowNum = Number(body.id);
+  const targetName = body.originalName || body.name;
+  if (!targetName) return -1;
+
+  const cleanTargetName = cleanForMatch(targetName);
+
+  // 1. Try direct index matching
+  if (!isNaN(rowNum) && rowNum > 1 && rowNum <= data.length) {
+    const potentialRow = data[rowNum - 1];
+    if (potentialRow && idx.channel !== -1) {
+      const currentClean = cleanForMatch(potentialRow[idx.channel]);
+      if (currentClean === cleanTargetName) {
+        return rowNum - 1;
+      }
+    }
+  }
+
+  // 2. If index didn't match (due to shifts), do a multi-criteria search
+  const reqProvince = body.originalProvince || body.province ? cleanForMatch(body.originalProvince || body.province) : "";
+  const reqGroup = body.originalGroup || body.group ? cleanForMatch(body.originalGroup || body.group) : "";
+  const reqPic = body.originalPic || body.pic ? cleanForMatch(body.originalPic || body.pic) : "";
+  const reqCat = body.originalCategory || body.category ? cleanForMatch(body.originalCategory || body.category) : "";
+
+  let bestIndex = -1;
+  let bestScore = -1;
+
+  for (let r = 1; r < data.length; r++) {
+    const row = data[r];
+    if (!row || idx.channel === -1) continue;
+
+    const rowNameClean = cleanForMatch(row[idx.channel]);
+    if (rowNameClean !== cleanTargetName) continue;
+
+    // We have a name match. Let's calculate a similarity score based on other fields
+    let score = 0;
+
+    if (idx.province !== -1 && reqProvince) {
+      const rowProv = cleanForMatch(row[idx.province]);
+      if (rowProv === reqProvince) {
+        score += 10;
+      }
+    }
+    if (idx.group !== -1 && reqGroup) {
+      const rowGroup = cleanForMatch(row[idx.group]);
+      if (rowGroup === reqGroup) {
+        score += 10;
+      }
+    }
+    if (idx.pic !== -1 && reqPic) {
+      const rowPic = cleanForMatch(row[idx.pic]);
+      if (rowPic === reqPic) {
+        score += 10;
+      }
+    }
+    if (idx.cat !== -1 && reqCat) {
+      const rowCat = cleanForMatch(row[idx.cat]);
+      if (rowCat === reqCat) {
+        score += 5;
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = r;
+    }
+  }
+
+  if (bestIndex !== -1) {
+    return bestIndex;
+  }
+
+  // Last resort: find the first row matching the name
+  return data.findIndex(
+    (row, idxVal) =>
+      idxVal > 0 &&
+      cleanForMatch(row[idx.channel]) === cleanTargetName
+  );
+}
+
 async function handleUpdatePartner(body: any) {
   console.log("handleUpdatePartner body:", body);
   const data = await getSheetValues("channel");
@@ -2279,44 +2359,7 @@ async function handleUpdatePartner(body: any) {
     ),
   };
 
-  let rowIndex = -1;
-  const rowNum = Number(body.id);
-
-  // 1. Check if rowNum is within bounds and the name actually matches using cleanForMatch
-  if (!isNaN(rowNum) && rowNum > 1 && rowNum <= data.length) {
-    const potentialRow = data[rowNum - 1];
-    if (potentialRow && idx.channel !== -1) {
-      const currentClean = cleanForMatch(potentialRow[idx.channel]);
-      const cleanOrig = body.originalName ? cleanForMatch(body.originalName) : "";
-      const cleanName = body.name ? cleanForMatch(body.name) : "";
-      
-      if (cleanOrig && currentClean === cleanOrig) {
-        rowIndex = rowNum - 1;
-      } else if (cleanName && currentClean === cleanName) {
-        rowIndex = rowNum - 1;
-      }
-    }
-  }
-
-  // 2. If row number didn't match, search by originalName across all rows using cleanForMatch
-  if (rowIndex === -1 && body.originalName && idx.channel !== -1) {
-    const targetClean = cleanForMatch(body.originalName);
-    rowIndex = data.findIndex(
-      (row, idxVal) =>
-        idxVal > 0 &&
-        cleanForMatch(row[idx.channel]) === targetClean,
-    );
-  }
-
-  // 3. Fallback to searching by name across all rows using cleanForMatch
-  if (rowIndex === -1 && body.name && idx.channel !== -1) {
-    const targetClean = cleanForMatch(body.name);
-    rowIndex = data.findIndex(
-      (row, idxVal) =>
-        idxVal > 0 &&
-        cleanForMatch(row[idx.channel]) === targetClean,
-    );
-  }
+  const rowIndex = findPartnerRowIndex(data, body, idx);
 
   if (rowIndex > 0 && rowIndex < data.length) {
     let userProvince = body.province || "";
@@ -2401,30 +2444,7 @@ async function handleDeletePartner(body: any) {
 
   if (idx.channel === -1) throw new Error("Kolom nama partner tidak ditemukan di sheet");
 
-  let rowIndex = -1;
-  const rowNum = Number(body.id);
-
-  // 1. Check if rowNum is within bounds and the name actually matches using cleanForMatch
-  if (!isNaN(rowNum) && rowNum > 1 && rowNum <= data.length) {
-    const potentialRow = data[rowNum - 1];
-    if (potentialRow && idx.channel !== -1 && body.name) {
-      const currentClean = cleanForMatch(potentialRow[idx.channel]);
-      const cleanName = cleanForMatch(body.name);
-      if (currentClean === cleanName) {
-        rowIndex = rowNum - 1;
-      }
-    }
-  }
-
-  // 2. Fallback to searching by name across all rows using cleanForMatch
-  if (rowIndex === -1 && body.name && idx.channel !== -1) {
-    const targetClean = cleanForMatch(body.name);
-    rowIndex = data.findIndex(
-      (row, idxVal) =>
-        idxVal > 0 &&
-        cleanForMatch(row[idx.channel]) === targetClean,
-    );
-  }
+  const rowIndex = findPartnerRowIndex(data, body, idx);
 
   if (rowIndex > 0 && rowIndex < data.length) {
     const deletedName = data[rowIndex][idx.channel];
