@@ -6908,7 +6908,8 @@ const Dashboard = ({
       if (grandTotalViewBy === "hybrid") {
         g = item.hybrid || "Unknown";
       } else if (grandTotalViewBy === "area") {
-        g = (item.rawArea && item.rawArea !== "-") ? item.rawArea : "Unknown";
+        const itemProv = item.province || getFromRecord<string>(teamProvinces, item.pic);
+        g = (itemProv && itemProv !== "-") ? itemProv : "Unknown";
       }
       
       if (groupData[g] === undefined) {
@@ -6933,7 +6934,7 @@ const Dashboard = ({
       }));
 
     return sortedGroups;
-  }, [summaryData, activeTeamMembers, filterBelowCrop, selectedClusters, grandTotalViewBy]);
+  }, [summaryData, activeTeamMembers, filterBelowCrop, selectedClusters, grandTotalViewBy, teamProvinces]);
 
   const categoryFillingStats = useMemo(() => {
     let total = 0;
@@ -8716,11 +8717,8 @@ const Dashboard = ({
               <div className="w-full overflow-x-auto scrollbar-thin select-none">
                 <div
                   style={{
-                    minWidth: "100%",
-                    width:
-                      overviewStats.areaChartData.length > 8
-                        ? `${overviewStats.areaChartData.length * 75}px`
-                        : "100%",
+                    minWidth: `${Math.max(500, overviewStats.areaChartData.length * 75)}px`,
+                    width: "100%",
                     height: "280px",
                   }}
                   className="font-sans"
@@ -9750,11 +9748,8 @@ const Dashboard = ({
                 <div className="w-full flex-1 min-h-[350px] overflow-x-auto overflow-y-hidden scrollbar-thin select-none">
                   <div
                     style={{
-                      minWidth: "100%",
-                      width:
-                        overviewStats.areaChartData.length > 8
-                          ? `${overviewStats.areaChartData.length * 100}px`
-                          : "100%",
+                      minWidth: `${Math.max(600, overviewStats.areaChartData.length * 100)}px`,
+                      width: "100%",
                       height: "350px",
                     }}
                     className="font-sans"
