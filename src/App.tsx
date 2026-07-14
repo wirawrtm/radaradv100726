@@ -8728,7 +8728,7 @@ const Dashboard = ({
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={overviewStats.areaChartData}
-                      margin={{ top: 25, right: 10, left: -10, bottom: 25 }}
+                      margin={{ top: 25, right: 10, left: -10, bottom: 35 }}
                       barGap={currentBarGap}
                       barCategoryGap={currentBarCategoryGap}
                     >
@@ -8781,6 +8781,7 @@ const Dashboard = ({
                         axisLine={false}
                         tickLine={false}
                         interval={0}
+                        height={45}
                       />
                       <YAxis
                         tick={{ fill: "#8E94B7", fontSize: 9, fontWeight: 500 }}
@@ -9641,6 +9642,233 @@ const Dashboard = ({
               </ResponsiveContainer>
             </div>
           </div>
+
+          {/* Focused Chart Modal */}
+          {isChartFocusedModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="relative w-full max-w-5xl bg-white rounded-[28px] shadow-[0_24px_64px_rgba(21,75,226,0.15)] border border-[#154be2]/10 p-6 md:p-8 flex flex-col justify-between max-h-[90vh] overflow-hidden">
+                {/* Header */}
+                <div className="flex items-start justify-between pb-4 border-b border-[#f0effc]">
+                  <div>
+                    <div className="flex items-center gap-2 text-primary font-bold">
+                      <span className="material-symbols-outlined text-[#154be2]">analytics</span>
+                      <span className="text-[14px] uppercase tracking-wider text-[#154be2] font-black">Detail Fokus Grafik</span>
+                    </div>
+                    <h3 className="text-lg font-black text-[#181a2c] tracking-tight mt-1">
+                      {overviewGroupDimension === "area"
+                        ? "Performa Kinerja Wilayah (Area)"
+                        : overviewGroupDimension === "province"
+                          ? "Performa Kinerja per Provinsi"
+                          : overviewGroupDimension === "sales_agronomist"
+                            ? "Performa Kinerja Sales Agronomist (SA)"
+                            : overviewGroupDimension === "business_solution"
+                              ? "Performa Kinerja Business Solution (BS)"
+                              : overviewGroupDimension === "distributor"
+                                ? "Performa Kinerja per Distributor"
+                                : "Performa Kinerja per Hybrid"}
+                    </h3>
+                    <p className="text-xs text-[#8E94B7] mt-1">
+                      {overviewMetricFilter === "movement"
+                        ? "Analisis perbandingan Stock In (Stok Masuk) vs POG (Penjualan)"
+                        : overviewMetricFilter === "idle"
+                          ? "Analisis perbandingan Idle Stock vs Sisa Stok Akhir"
+                          : overviewMetricFilter === "total_stock"
+                            ? "Analisis total sisa stok akhir"
+                            : overviewMetricFilter === "Opening"
+                              ? "Analisis perbandingan Stok Awal vs Sisa Stok Akhir"
+                              : "Analisis perbandingan POG (Penjualan) vs Sisa Stok Akhir"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setIsChartFocusedModalOpen(false)}
+                    className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-700"
+                  >
+                    <span className="material-symbols-outlined text-xl">close</span>
+                  </button>
+                </div>
+
+                {/* Controls inside Modal */}
+                <div className="flex flex-wrap items-center justify-between gap-4 py-4 bg-[#fbfaff] px-4 rounded-2xl border border-[#e2e8f0]/60 my-4 shrink-0">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider">Dimensi:</span>
+                      <select
+                        value={overviewGroupDimension}
+                        onChange={(e: any) => setOverviewGroupDimension(e.target.value as any)}
+                        className="bg-white border border-[#e2e8f0] rounded-xl px-2.5 py-1 text-xs font-black text-[#154be2] focus:outline-none focus:ring-1 focus:ring-[#154be2] cursor-pointer"
+                      >
+                        <option value="area">Area</option>
+                        <option value="province">Province</option>
+                        <option value="sales_agronomist">Sales Agronomist</option>
+                        <option value="business_solution">Business Solution</option>
+                        <option value="material">Hybrid</option>
+                        <option value="distributor">Distributor</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider">Metrik:</span>
+                      <select
+                        value={overviewMetricFilter}
+                        onChange={(e: any) => setOverviewMetricFilter(e.target.value as any)}
+                        className="bg-white border border-[#e2e8f0] rounded-xl px-2.5 py-1 text-xs font-black text-[#154be2] focus:outline-none focus:ring-1 focus:ring-[#154be2] cursor-pointer"
+                      >
+                        <option value="movement">Movement</option>
+                        <option value="idle">Idle Stock</option>
+                        <option value="total_stock">Total Stock</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Legend */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="size-3 rounded-[4px] bg-gradient-to-tr from-[#154be2] to-[#3b82f6]" />
+                      <span className="text-xs font-extrabold text-[#4e5572]">
+                        {overviewMetricFilter === "movement"
+                          ? "Stock In"
+                          : overviewMetricFilter === "idle"
+                            ? "Idle Stock"
+                            : overviewMetricFilter === "total_stock"
+                              ? "Total Stock"
+                              : overviewMetricFilter === "Opening"
+                                ? "Stok Awal"
+                                : "POG (Penjualan)"}
+                      </span>
+                    </div>
+                    {overviewMetricFilter !== "idle" && overviewMetricFilter !== "total_stock" && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="size-3 rounded-[4px] bg-gradient-to-tr from-[#06b6d4] to-[#22d3ee]" />
+                        <span className="text-xs font-extrabold text-[#4e5572]">
+                          {overviewMetricFilter === "movement" ? "POG" : "Stok Akhir"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Chart container in Modal */}
+                <div className="w-full flex-1 min-h-[350px] overflow-x-auto overflow-y-hidden scrollbar-thin select-none">
+                  <div
+                    style={{
+                      minWidth: "100%",
+                      width:
+                        overviewStats.areaChartData.length > 8
+                          ? `${overviewStats.areaChartData.length * 100}px`
+                          : "100%",
+                      height: "350px",
+                    }}
+                    className="font-sans"
+                  >
+                    <ResponsiveContainer width="100%" height="100%">
+                       <BarChart
+                        data={overviewStats.areaChartData}
+                        margin={{ top: 25, right: 15, left: -10, bottom: 35 }}
+                        barGap={currentBarGap}
+                        barCategoryGap={currentBarCategoryGap}
+                      >
+                        <defs>
+                          <linearGradient id="modalColorAreaPog" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#154be2" stopOpacity={0.95} />
+                            <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.7} />
+                          </linearGradient>
+                          <linearGradient id="modalColorAreaStock" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.95} />
+                            <stop offset="100%" stopColor="#22d3ee" stopOpacity={0.7} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="name" tick={<CustomXAxisTick />} axisLine={false} tickLine={false} interval={0} height={45} />
+                        <YAxis tick={{ fill: "#8E94B7", fontSize: 10, fontWeight: 500 }} axisLine={false} tickLine={false} />
+                        <Tooltip
+                          cursor={{ fill: "rgba(21, 75, 226, 0.03)" }}
+                          contentStyle={{
+                            backgroundColor: "white",
+                            borderRadius: "16px",
+                            border: "1px solid #edecff",
+                            boxShadow: "0 12px 32px rgba(21,75,226,0.1)",
+                          }}
+                          labelStyle={{ fontSize: "12px", fontWeight: "bold", color: "#181a2c" }}
+                          itemStyle={{ fontSize: "11px", padding: "1px 0" }}
+                        />
+                        <Bar
+                          dataKey={
+                            overviewMetricFilter === "movement"
+                              ? "sellIn"
+                              : overviewMetricFilter === "idle"
+                                ? "idle"
+                                : overviewMetricFilter === "total_stock"
+                                  ? "stock"
+                                  : overviewMetricFilter === "Opening"
+                                    ? "opening"
+                                    : "pog"
+                          }
+                          name={
+                            overviewMetricFilter === "movement"
+                              ? "Stock In"
+                              : overviewMetricFilter === "idle"
+                                ? "Idle Stock"
+                                : overviewMetricFilter === "total_stock"
+                                  ? "Total Stock"
+                                  : overviewMetricFilter === "Opening"
+                                    ? "Stok Awal"
+                                    : "Penjualan (POG)"
+                          }
+                          fill="url(#modalColorAreaPog)"
+                          radius={[6, 6, 0, 0]}
+                          maxBarSize={currentMaxBarSize}
+                        >
+                          <LabelList
+                            dataKey={
+                              overviewMetricFilter === "movement"
+                                ? "sellIn"
+                                : overviewMetricFilter === "idle"
+                                  ? "idle"
+                                  : overviewMetricFilter === "total_stock"
+                                    ? "stock"
+                                    : overviewMetricFilter === "Opening"
+                                      ? "opening"
+                                      : "pog"
+                            }
+                            position="top"
+                            offset={8}
+                            style={{ fontSize: 10, fontWeight: 700, fill: "#154be2", fontFamily: "sans-serif" }}
+                            formatter={(val: any) => {
+                              if (val === undefined || val === null || isNaN(Number(val))) return "";
+                              const num = Number(val);
+                              if (num === 0) return "0";
+                              return Math.abs(num) < 10 ? num.toFixed(1) : Math.round(num).toLocaleString();
+                            }}
+                          />
+                        </Bar>
+                        {overviewMetricFilter !== "idle" && overviewMetricFilter !== "total_stock" && (
+                          <Bar
+                            dataKey={overviewMetricFilter === "movement" ? "pog" : "stock"}
+                            name={overviewMetricFilter === "movement" ? "POG" : "Stok Akhir"}
+                            fill="url(#modalColorAreaStock)"
+                            radius={[6, 6, 0, 0]}
+                            maxBarSize={currentMaxBarSize}
+                          >
+                            <LabelList
+                              dataKey={overviewMetricFilter === "movement" ? "pog" : "stock"}
+                              position="top"
+                              offset={8}
+                              style={{ fontSize: 10, fontWeight: 700, fill: "#0ea5e9", fontFamily: "sans-serif" }}
+                              formatter={(val: any) => {
+                                if (val === undefined || val === null || isNaN(Number(val))) return "";
+                                const num = Number(val);
+                                if (num === 0) return "0";
+                                return Math.abs(num) < 10 ? num.toFixed(1) : Math.round(num).toLocaleString();
+                              }}
+                            />
+                          </Bar>
+                        )}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -10538,232 +10766,7 @@ const Dashboard = ({
             itemName={employeeDeleteModal.item?.name}
           />
 
-          {/* Focused Chart Modal */}
-          {isChartFocusedModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-              <div className="relative w-full max-w-5xl bg-white rounded-[28px] shadow-[0_24px_64px_rgba(21,75,226,0.15)] border border-[#154be2]/10 p-6 md:p-8 flex flex-col justify-between max-h-[90vh] overflow-hidden">
-                {/* Header */}
-                <div className="flex items-start justify-between pb-4 border-b border-[#f0effc]">
-                  <div>
-                    <div className="flex items-center gap-2 text-primary font-bold">
-                      <span className="material-symbols-outlined text-[#154be2]">analytics</span>
-                      <span className="text-[14px] uppercase tracking-wider text-[#154be2] font-black">Detail Fokus Grafik</span>
-                    </div>
-                    <h3 className="text-lg font-black text-[#181a2c] tracking-tight mt-1">
-                      {overviewGroupDimension === "area"
-                        ? "Performa Kinerja Wilayah (Area)"
-                        : overviewGroupDimension === "province"
-                          ? "Performa Kinerja per Provinsi"
-                          : overviewGroupDimension === "sales_agronomist"
-                            ? "Performa Kinerja Sales Agronomist (SA)"
-                            : overviewGroupDimension === "business_solution"
-                              ? "Performa Kinerja Business Solution (BS)"
-                              : overviewGroupDimension === "distributor"
-                                ? "Performa Kinerja per Distributor"
-                                : "Performa Kinerja per Hybrid"}
-                    </h3>
-                    <p className="text-xs text-[#8E94B7] mt-1">
-                      {overviewMetricFilter === "movement"
-                        ? "Analisis perbandingan Stock In (Stok Masuk) vs POG (Penjualan)"
-                        : overviewMetricFilter === "idle"
-                          ? "Analisis perbandingan Idle Stock vs Sisa Stok Akhir"
-                          : overviewMetricFilter === "total_stock"
-                            ? "Analisis total sisa stok akhir"
-                            : overviewMetricFilter === "Opening"
-                              ? "Analisis perbandingan Stok Awal vs Sisa Stok Akhir"
-                              : "Analisis perbandingan POG (Penjualan) vs Sisa Stok Akhir"}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setIsChartFocusedModalOpen(false)}
-                    className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-700"
-                  >
-                    <span className="material-symbols-outlined text-xl">close</span>
-                  </button>
-                </div>
 
-                {/* Controls inside Modal */}
-                <div className="flex flex-wrap items-center justify-between gap-4 py-4 bg-[#fbfaff] px-4 rounded-2xl border border-[#e2e8f0]/60 my-4 shrink-0">
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider">Dimensi:</span>
-                      <select
-                        value={overviewGroupDimension}
-                        onChange={(e: any) => setOverviewGroupDimension(e.target.value as any)}
-                        className="bg-white border border-[#e2e8f0] rounded-xl px-2.5 py-1 text-xs font-black text-[#154be2] focus:outline-none focus:ring-1 focus:ring-[#154be2] cursor-pointer"
-                      >
-                        <option value="area">Area</option>
-                        <option value="province">Province</option>
-                        <option value="sales_agronomist">Sales Agronomist</option>
-                        <option value="business_solution">Business Solution</option>
-                        <option value="material">Hybrid</option>
-                        <option value="distributor">Distributor</option>
-                      </select>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider">Metrik:</span>
-                      <select
-                        value={overviewMetricFilter}
-                        onChange={(e: any) => setOverviewMetricFilter(e.target.value as any)}
-                        className="bg-white border border-[#e2e8f0] rounded-xl px-2.5 py-1 text-xs font-black text-[#154be2] focus:outline-none focus:ring-1 focus:ring-[#154be2] cursor-pointer"
-                      >
-                        <option value="movement">Movement</option>
-                        <option value="idle">Idle Stock</option>
-                        <option value="total_stock">Total Stock</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Legend */}
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="size-3 rounded-[4px] bg-gradient-to-tr from-[#154be2] to-[#3b82f6]" />
-                      <span className="text-xs font-extrabold text-[#4e5572]">
-                        {overviewMetricFilter === "movement"
-                          ? "Stock In"
-                          : overviewMetricFilter === "idle"
-                            ? "Idle Stock"
-                            : overviewMetricFilter === "total_stock"
-                              ? "Total Stock"
-                              : overviewMetricFilter === "Opening"
-                                ? "Stok Awal"
-                                : "POG (Penjualan)"}
-                      </span>
-                    </div>
-                    {overviewMetricFilter !== "idle" && overviewMetricFilter !== "total_stock" && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="size-3 rounded-[4px] bg-gradient-to-tr from-[#06b6d4] to-[#22d3ee]" />
-                        <span className="text-xs font-extrabold text-[#4e5572]">
-                          {overviewMetricFilter === "movement" ? "POG" : "Stok Akhir"}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Chart container in Modal */}
-                <div className="w-full flex-1 min-h-[350px] overflow-x-auto scrollbar-thin select-none">
-                  <div
-                    style={{
-                      minWidth: "100%",
-                      width:
-                        overviewStats.areaChartData.length > 8
-                          ? `${overviewStats.areaChartData.length * 100}px`
-                          : "100%",
-                      height: "400px",
-                    }}
-                    className="font-sans"
-                  >
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={overviewStats.areaChartData}
-                        margin={{ top: 25, right: 15, left: -10, bottom: 25 }}
-                        barGap={currentBarGap}
-                        barCategoryGap={currentBarCategoryGap}
-                      >
-                        <defs>
-                          <linearGradient id="modalColorAreaPog" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#154be2" stopOpacity={0.95} />
-                            <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.7} />
-                          </linearGradient>
-                          <linearGradient id="modalColorAreaStock" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.95} />
-                            <stop offset="100%" stopColor="#22d3ee" stopOpacity={0.7} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e2e8f0" />
-                        <XAxis dataKey="name" tick={<CustomXAxisTick />} axisLine={false} tickLine={false} interval={0} />
-                        <YAxis tick={{ fill: "#8E94B7", fontSize: 10, fontWeight: 500 }} axisLine={false} tickLine={false} />
-                        <Tooltip
-                          cursor={{ fill: "rgba(21, 75, 226, 0.03)" }}
-                          contentStyle={{
-                            backgroundColor: "white",
-                            borderRadius: "16px",
-                            border: "1px solid #edecff",
-                            boxShadow: "0 12px 32px rgba(21,75,226,0.1)",
-                          }}
-                          labelStyle={{ fontSize: "12px", fontWeight: "bold", color: "#181a2c" }}
-                          itemStyle={{ fontSize: "11px", padding: "1px 0" }}
-                        />
-                        <Bar
-                          dataKey={
-                            overviewMetricFilter === "movement"
-                              ? "sellIn"
-                              : overviewMetricFilter === "idle"
-                                ? "idle"
-                                : overviewMetricFilter === "total_stock"
-                                  ? "stock"
-                                  : overviewMetricFilter === "Opening"
-                                    ? "opening"
-                                    : "pog"
-                          }
-                          name={
-                            overviewMetricFilter === "movement"
-                              ? "Stock In"
-                              : overviewMetricFilter === "idle"
-                                ? "Idle Stock"
-                                : overviewMetricFilter === "total_stock"
-                                  ? "Total Stock"
-                                  : overviewMetricFilter === "Opening"
-                                    ? "Stok Awal"
-                                    : "Penjualan (POG)"
-                          }
-                          fill="url(#modalColorAreaPog)"
-                          radius={[6, 6, 0, 0]}
-                          maxBarSize={currentMaxBarSize}
-                        >
-                          <LabelList
-                            dataKey={
-                              overviewMetricFilter === "movement"
-                                ? "sellIn"
-                                : overviewMetricFilter === "idle"
-                                  ? "idle"
-                                  : overviewMetricFilter === "total_stock"
-                                    ? "stock"
-                                    : overviewMetricFilter === "Opening"
-                                      ? "opening"
-                                      : "pog"
-                            }
-                            position="top"
-                            offset={8}
-                            style={{ fontSize: 10, fontWeight: 700, fill: "#154be2", fontFamily: "sans-serif" }}
-                            formatter={(val: any) => {
-                              if (val === undefined || val === null || isNaN(Number(val))) return "";
-                              const num = Number(val);
-                              if (num === 0) return "0";
-                              return Math.abs(num) < 10 ? num.toFixed(1) : Math.round(num).toLocaleString();
-                            }}
-                          />
-                        </Bar>
-                        {overviewMetricFilter !== "idle" && overviewMetricFilter !== "total_stock" && (
-                          <Bar
-                            dataKey={overviewMetricFilter === "movement" ? "pog" : "stock"}
-                            name={overviewMetricFilter === "movement" ? "POG" : "Stok Akhir"}
-                            fill="url(#modalColorAreaStock)"
-                            radius={[6, 6, 0, 0]}
-                            maxBarSize={currentMaxBarSize}
-                          >
-                            <LabelList
-                              dataKey={overviewMetricFilter === "movement" ? "pog" : "stock"}
-                              position="top"
-                              offset={8}
-                              style={{ fontSize: 10, fontWeight: 700, fill: "#0ea5e9", fontFamily: "sans-serif" }}
-                              formatter={(val: any) => {
-                                if (val === undefined || val === null || isNaN(Number(val))) return "";
-                                const num = Number(val);
-                                if (num === 0) return "0";
-                                return Math.abs(num) < 10 ? num.toFixed(1) : Math.round(num).toLocaleString();
-                              }}
-                            />
-                          </Bar>
-                        )}
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
