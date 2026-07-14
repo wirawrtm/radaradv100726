@@ -1802,6 +1802,15 @@ const Dashboard = ({
     "area" | "province" | "sales_agronomist" | "business_solution" | "material"
   >("area");
 
+  // Dynamic parameters for Overview Bar Chart
+  const isMovement = overviewMetricFilter === "movement";
+  const isArea = overviewGroupDimension === "area";
+  const isProvince = overviewGroupDimension === "province";
+
+  const currentBarGap = 0;
+  const currentBarCategoryGap = isProvince && isMovement ? "10%" : (isArea && isMovement ? "15%" : "25%");
+  const currentMaxBarSize = isProvince && isMovement ? 55 : (isArea && isMovement ? 65 : 32);
+
   const isBusinessAnalyst = useMemo(() => {
     if (!userData) return false;
     const isBA = (userData.position &&
@@ -1920,6 +1929,7 @@ const Dashboard = ({
     item: null,
   });
   const [channelsRefreshKey, setChannelsRefreshKey] = useState(0);
+  const [isChartFocusedModalOpen, setIsChartFocusedModalOpen] = useState(false);
 
   // State Employee Modifying & Hirarki Expand/Collapse
   const [employeeEditModal, setEmployeeEditModal] = useState<{
@@ -4211,17 +4221,15 @@ const Dashboard = ({
       }
 
       let area = "-";
-      if (itemArea && String(itemArea).trim() !== "") {
+      const cleanPic = cleanForMatch(pic);
+      const matchedMember = getTeamMemberMatch(pic);
+      const foundArea = getFromRecord<string>(teamAreas, matchedMember || pic);
+      if (foundArea && foundArea !== "-") {
+        area = foundArea;
+      } else if (itemArea && String(itemArea).trim() !== "") {
         area = String(itemArea).trim();
-      } else {
-        const cleanPic = cleanForMatch(pic);
-        const matchedMember = getTeamMemberMatch(pic);
-        const foundArea = getFromRecord<string>(teamAreas, matchedMember || pic);
-        if (foundArea) {
-          area = foundArea;
-        } else if (cleanPic === cleanForMatch(userData?.name)) {
-          area = userData?.area || "-";
-        }
+      } else if (cleanPic === cleanForMatch(userData?.name)) {
+        area = userData?.area || "-";
       }
 
       const category = String(kInfo.category || "Uncategorized").trim();
@@ -4388,19 +4396,28 @@ const Dashboard = ({
 
     // 5. Area
     const areasSet = new Set<string>();
-    rawData.forEach((d) => {
-      const cleanKName = cleanForMatch(d.kiosk);
-      const kInfo =
-        kiosks.find((k) => cleanForMatch(k.name) === cleanKName) || {};
-      const rawPic = normalizeName(String(d.user || kInfo.pic || "Unknown"));
-      const pic = getDdaOfUser(rawPic, userData?.name, computedTeamProfiles);
-      const matchedMember = teamMembers.find((m) => matchNames(m, pic));
-      const area =
-        getFromRecord<string>(teamAreas, matchedMember || pic) ||
-        kInfo.area ||
-        d.area;
-      if (area && area !== "-") areasSet.add(String(area).trim());
-    });
+    if (employees && employees.length > 0) {
+      employees.forEach((emp) => {
+        const area = String(emp.area || "").trim();
+        if (area && area !== "-") {
+          areasSet.add(area);
+        }
+      });
+    } else {
+      rawData.forEach((d) => {
+        const cleanKName = cleanForMatch(d.kiosk);
+        const kInfo =
+          kiosks.find((k) => cleanForMatch(k.name) === cleanKName) || {};
+        const rawPic = normalizeName(String(d.user || kInfo.pic || "Unknown"));
+        const pic = getDdaOfUser(rawPic, userData?.name, computedTeamProfiles);
+        const matchedMember = teamMembers.find((m) => matchNames(m, pic));
+        const area =
+          getFromRecord<string>(teamAreas, matchedMember || pic) ||
+          kInfo.area ||
+          d.area;
+        if (area && area !== "-") areasSet.add(String(area).trim());
+      });
+    }
     const areas = Array.from(areasSet).filter(Boolean).sort();
 
     return {
@@ -4410,7 +4427,7 @@ const Dashboard = ({
       teams,
       areas,
     };
-  }, [rawWorkingData, kiosks, userData, teamMembers, teamAreas]);
+  }, [rawWorkingData, kiosks, userData, teamMembers, teamAreas, employees]);
 
   // Recalculate processed POG data base on selected month filter
   const pogDataProcessedForOverview = useMemo(() => {
@@ -4496,17 +4513,15 @@ const Dashboard = ({
       }
 
       let area = "-";
-      if (itemArea && String(itemArea).trim() !== "") {
+      const cleanPic = cleanForMatch(pic);
+      const matchedMember = getTeamMemberMatch(pic);
+      const foundArea = getFromRecord<string>(teamAreas, matchedMember || pic);
+      if (foundArea && foundArea !== "-") {
+        area = foundArea;
+      } else if (itemArea && String(itemArea).trim() !== "") {
         area = String(itemArea).trim();
-      } else {
-        const cleanPic = cleanForMatch(pic);
-        const matchedMember = getTeamMemberMatch(pic);
-        const foundArea = getFromRecord<string>(teamAreas, matchedMember || pic);
-        if (foundArea) {
-          area = foundArea;
-        } else if (cleanPic === cleanForMatch(userData?.name)) {
-          area = userData?.area || "-";
-        }
+      } else if (cleanPic === cleanForMatch(userData?.name)) {
+        area = userData?.area || "-";
       }
 
       const category = String(kInfo.category || "Uncategorized").trim();
@@ -7121,10 +7136,10 @@ const Dashboard = ({
             <span
               className={`font-bold text-sm ${isZeroTotal ? "text-red-600" : "text-primary"}`}
             >
-              {formatNum(row.selectedTotal)}
+              {formatOverviewVal(row.selectedTotal, overviewUseMt).valueStr}
             </span>
             <span className="text-[8px] text-[#8E94B7] uppercase tracking-widest font-bold">
-              Total Kg
+              Total {formatOverviewVal(row.selectedTotal, overviewUseMt).unit}
             </span>
           </div>
         </div>
@@ -7154,7 +7169,7 @@ const Dashboard = ({
                   {clusterConfig?.label || clusterKey}
                 </span>
                 <span className="font-semibold text-[10.5px] truncate w-full text-white">
-                  {formatNum(row[clusterKey])}
+                  {formatOverviewVal(row[clusterKey], overviewUseMt).valueStr}
                 </span>
               </div>
             );
@@ -7248,8 +7263,8 @@ const Dashboard = ({
             <span
               className={`font-bold text-[11.5px] shrink-0 ${isChildZeroTeam ? "text-red-600" : "text-[#181a2c]"}`}
             >
-              {formatNum(child.selectedTotal)}{" "}
-              <span className="text-[8.5px] text-[#8E94B7]">Kg</span>
+              {formatOverviewVal(child.selectedTotal, overviewUseMt).valueStr}{" "}
+              <span className="text-[8.5px] text-[#8E94B7]">{formatOverviewVal(child.selectedTotal, overviewUseMt).unit}</span>
             </span>
           </div>
           <div
@@ -7285,7 +7300,7 @@ const Dashboard = ({
                   <span
                     className={`font-semibold text-[9.5px] truncate w-full ${isChildZeroTeam ? "text-red-600" : "text-[#181a2c]"}`}
                   >
-                    {formatNum(child[clusterKey])}
+                    {formatOverviewVal(child[clusterKey], overviewUseMt).valueStr}
                   </span>
                 </div>
               );
@@ -7385,8 +7400,8 @@ const Dashboard = ({
             <span
               className={`font-bold text-[11.5px] shrink-0 ${isChildZeroTeam ? "text-red-600" : "text-primary"}`}
             >
-              {formatNum(child.pog)}{" "}
-              <span className="text-[8.5px] text-[#8E94B7]">POG</span>
+              {formatOverviewVal(child.pog, overviewUseMt).valueStr}{" "}
+              <span className="text-[8.5px] text-[#8E94B7]">POG ({formatOverviewVal(child.pog, overviewUseMt).unit})</span>
             </span>
           </div>
           <div className="flex flex-row w-full gap-1.5 md:gap-2">
@@ -7415,7 +7430,7 @@ const Dashboard = ({
                     isChildZeroTeam ? "text-red-700" : "text-[#181a2c]"
                   }`}
                 >
-                  {formatNum(child.lastQty)}
+                  {formatOverviewVal(child.lastQty, overviewUseMt).valueStr}
                 </span>
               </div>
               <div
@@ -7435,7 +7450,7 @@ const Dashboard = ({
                     isChildZeroTeam ? "text-red-700" : "text-[#1d4ed8]"
                   }`}
                 >
-                  {formatNum(child.currentQty)}
+                  {formatOverviewVal(child.currentQty, overviewUseMt).valueStr}
                 </span>
               </div>
             </div>
@@ -7467,7 +7482,7 @@ const Dashboard = ({
                     isChildZeroTeam ? "text-red-800" : "text-[#154be2]"
                   }`}
                 >
-                  {formatNum(child.sellIn)}
+                  {formatOverviewVal(child.sellIn, overviewUseMt).valueStr}
                 </span>
               </div>
               <div
@@ -7489,7 +7504,7 @@ const Dashboard = ({
                     isChildZeroTeam ? "text-red-800" : "text-amber-700"
                   }`}
                 >
-                  {formatNum(child.idleStock)}
+                  {formatOverviewVal(child.idleStock, overviewUseMt).valueStr}
                 </span>
               </div>
               <div
@@ -7513,7 +7528,7 @@ const Dashboard = ({
                       : "text-emerald-700 font-extrabold"
                   }`}
                 >
-                  {formatNum(child.pog)}
+                  {formatOverviewVal(child.pog, overviewUseMt).valueStr}
                 </span>
               </div>
             </div>
@@ -7608,10 +7623,10 @@ const Dashboard = ({
             <span
               className={`font-bold text-sm ${isZeroPogActivity ? "text-red-600" : "text-primary"}`}
             >
-              {formatNum(row.pog)}
+              {formatOverviewVal(row.pog, overviewUseMt).valueStr}
             </span>
             <span className="text-[8px] text-[#8E94B7] uppercase tracking-widest font-bold">
-              POG
+              POG ({formatOverviewVal(row.pog, overviewUseMt).unit})
             </span>
           </div>
         </div>
@@ -7638,7 +7653,7 @@ const Dashboard = ({
                 Opening Inv
               </span>
               <span className="font-semibold text-[10.5px] truncate w-full text-white">
-                {formatNum(row.lastQty)}
+                {formatOverviewVal(row.lastQty, overviewUseMt).valueStr}
               </span>
             </div>
             <div
@@ -7650,7 +7665,7 @@ const Dashboard = ({
                 End of Inv
               </span>
               <span className="font-semibold text-[10.5px] truncate w-full text-white">
-                {formatNum(row.currentQty)}
+                {formatOverviewVal(row.currentQty, overviewUseMt).valueStr}
               </span>
             </div>
           </div>
@@ -7672,7 +7687,7 @@ const Dashboard = ({
                 Stock in
               </span>
               <span className="font-semibold text-[10.5px] truncate w-full text-white">
-                {formatNum(row.sellIn)}
+                {formatOverviewVal(row.sellIn, overviewUseMt).valueStr}
               </span>
             </div>
             <div
@@ -7684,7 +7699,7 @@ const Dashboard = ({
                 idle stock
               </span>
               <span className="font-semibold text-[10.5px] truncate w-full text-white">
-                {formatNum(row.idleStock)}
+                {formatOverviewVal(row.idleStock, overviewUseMt).valueStr}
               </span>
             </div>
             <div
@@ -7696,7 +7711,7 @@ const Dashboard = ({
                 POG
               </span>
               <span className="font-semibold text-[10.5px] truncate w-full text-white font-extrabold">
-                {formatNum(row.pog)}
+                {formatOverviewVal(row.pog, overviewUseMt).valueStr}
               </span>
             </div>
           </div>
@@ -7788,10 +7803,10 @@ const Dashboard = ({
           </div>
           <div className="flex flex-col items-end">
             <span className="font-bold text-xl xl:text-2xl text-white">
-              {formatNum(isSummaryTab ? totalSummary.selectedTotal : currentTotal.pog)}
+              {formatOverviewVal(isSummaryTab ? totalSummary.selectedTotal : currentTotal.pog, overviewUseMt).valueStr}
             </span>
             <span className="text-[8px] text-white/80 uppercase tracking-widest font-bold">
-              {isSummaryTab ? "Total Kg" : "POG"}
+              {isSummaryTab ? `Total ${formatOverviewVal(totalSummary.selectedTotal, overviewUseMt).unit}` : `POG (${formatOverviewVal(currentTotal.pog, overviewUseMt).unit})`}
             </span>
           </div>
         </div>
@@ -7825,7 +7840,7 @@ const Dashboard = ({
                     {clusterConfig?.label || clusterKey}
                   </span>
                   <span className="font-bold text-sm xl:text-base truncate w-full text-white">
-                    {formatNum(totalSummary[clusterKey])}
+                    {formatOverviewVal(totalSummary[clusterKey], overviewUseMt).valueStr}
                   </span>
                 </div>
               );
@@ -7840,7 +7855,7 @@ const Dashboard = ({
                   Opening
                 </span>
                 <span className="font-bold text-xs truncate w-full text-white">
-                  {formatNum(currentTotal.lastQty)}
+                  {formatOverviewVal(currentTotal.lastQty, overviewUseMt).valueStr}
                 </span>
               </div>
               <div className="flex-1 min-w-0 py-1.5 px-0.5 flex flex-col items-center justify-center text-center">
@@ -7848,7 +7863,7 @@ const Dashboard = ({
                   End Inv
                 </span>
                 <span className="font-bold text-xs truncate w-full text-white">
-                  {formatNum(currentTotal.currentQty)}
+                  {formatOverviewVal(currentTotal.currentQty, overviewUseMt).valueStr}
                 </span>
               </div>
             </div>
@@ -7860,7 +7875,7 @@ const Dashboard = ({
                   Stock In
                 </span>
                 <span className="font-extrabold text-xs truncate w-full text-white">
-                  {formatNum(currentTotal.sellIn)}
+                  {formatOverviewVal(currentTotal.sellIn, overviewUseMt).valueStr}
                 </span>
               </div>
               <div className="flex-1 min-w-0 py-1.5 px-0.5 flex flex-col items-center justify-center text-center hover:bg-white/5 transition-colors rounded-[12px]">
@@ -7868,7 +7883,7 @@ const Dashboard = ({
                   Idle Stock
                 </span>
                 <span className="font-extrabold text-xs truncate w-full text-amber-100">
-                  {formatNum(currentTotal.idleStock)}
+                  {formatOverviewVal(currentTotal.idleStock, overviewUseMt).valueStr}
                 </span>
               </div>
               <div className="flex-1 min-w-0 py-1.5 px-0.5 flex flex-col items-center justify-center text-center hover:bg-white/5 transition-colors rounded-[12px]">
@@ -7876,7 +7891,7 @@ const Dashboard = ({
                   POG
                 </span>
                 <span className="font-black text-xs truncate w-full text-cyan-50">
-                  {formatNum(currentTotal.pog)}
+                  {formatOverviewVal(currentTotal.pog, overviewUseMt).valueStr}
                 </span>
               </div>
             </div>
@@ -8075,7 +8090,7 @@ const Dashboard = ({
                       : "text-white/70 hover:text-white"
                   }`}
                 >
-                  Area
+                  Province
                 </button>
               </div>
             </div>
@@ -8130,22 +8145,22 @@ const Dashboard = ({
             {grandTotalStats.map((stat, index) => (
               <div
                 key={stat.name}
-                className="bg-white/10 border border-white/20 py-2 px-3 rounded-[16px] flex flex-col shadow-sm"
+                className="bg-white/12 hover:bg-white/15 transition-all border border-white/25 py-2 px-2 rounded-[16px] flex flex-col shadow-sm"
               >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <div className="size-6 rounded-lg bg-white/20 flex items-center justify-center text-white font-black text-[11px] shrink-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="size-6 rounded-lg bg-white/25 flex items-center justify-center text-white font-black text-xs shrink-0">
                     {index + 1}
                   </div>
-                  <div className="min-w-0 flex-1 flex justify-between items-center">
-                    <p className="text-[11px] font-bold text-white uppercase tracking-wider truncate leading-none">
+                  <div className="min-w-0 flex-1 flex justify-between items-center gap-2">
+                    <p className="text-xs md:text-[13px] font-bold text-white uppercase tracking-wider truncate leading-none" title={stat.name}>
                       {stat.name}
                     </p>
-                    <p className="text-[12px] font-extrabold text-white tracking-tight leading-none">
+                    <p className="text-xs md:text-[13px] font-extrabold text-white tracking-tight leading-none shrink-0">
                       {formatOverviewWithUnit(stat.total, overviewUseMt)}
                     </p>
                   </div>
                 </div>
-                <div className="flex w-full divide-x divide-white/15 border-t border-white/15 pt-1.5 mt-1.5">
+                <div className="flex w-full divide-x divide-white/20 border-t border-white/20 pt-2 mt-1">
                   {selectedClusters.map((clusterKey) => {
                     const val = stat.clusters[clusterKey] || 0;
                     if (clusterKey === "Uncategorized" && val === 0)
@@ -8158,10 +8173,10 @@ const Dashboard = ({
                         key={clusterKey}
                         className="flex-1 min-w-0 px-0.5 flex flex-col items-center justify-center text-center"
                       >
-                        <span className="text-[6.5px] font-bold uppercase tracking-wider text-white/70 mb-0.5 truncate w-full">
+                        <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-white/80 mb-0.5 truncate w-full">
                           {clusterConfig?.label || clusterKey}
                         </span>
-                        <span className="font-bold text-[8.5px] truncate w-full text-white">
+                        <span className="font-bold text-[11px] md:text-[12px] truncate w-full text-white">
                           {formatOverviewVal(val, overviewUseMt).valueStr}
                         </span>
                       </div>
@@ -8258,7 +8273,7 @@ const Dashboard = ({
       {activeTab === "overview" && (
         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
           {/* Header */}
-          <div className="mb-6 ml-1 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="mb-2 ml-1 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h1 className="text-lg font-semibold text-[#181a2c] tracking-tight">
                 Executive{" "}
@@ -8567,40 +8582,50 @@ const Dashboard = ({
             {/* Chart 1: Sales (POG) & Stock per Area / Dimension */}
             <div className="lg:col-span-2 bg-white p-6 rounded-[24px] shadow-[0_12px_32px_rgba(21,75,226,0.03)] border border-[#154be2]/5 flex flex-col justify-between">
               <div className="flex flex-col gap-4 mb-6 pb-4 border-b border-[#f0effc]/60">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary text-sm font-semibold border-b border-primary/20 pb-0.5">
-                      {overviewGroupDimension === "material"
-                        ? "widgets"
-                        : overviewGroupDimension === "province"
-                          ? "map"
-                          : "analytics"}
-                    </span>
-                    <h3 className="text-xs font-bold text-[#181a2c] tracking-tight">
-                      {overviewGroupDimension === "area"
-                        ? "Performa Kinerja Wilayah (Area)"
-                        : overviewGroupDimension === "province"
-                          ? "Performa Kinerja per Provinsi"
-                          : overviewGroupDimension === "sales_agronomist"
-                            ? "Performa Kinerja Sales Agronomist (SA)"
-                            : overviewGroupDimension === "business_solution"
-                              ? "Performa Kinerja Business Solution (BS)"
-                              : overviewGroupDimension === "distributor"
-                                ? "Performa Kinerja per Distributor"
-                                : "Performa Kinerja per Hybrid"}
-                    </h3>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary text-sm font-semibold border-b border-primary/20 pb-0.5">
+                        {overviewGroupDimension === "material"
+                          ? "widgets"
+                          : overviewGroupDimension === "province"
+                            ? "map"
+                            : "analytics"}
+                      </span>
+                      <h3 className="text-xs font-bold text-[#181a2c] tracking-tight">
+                        {overviewGroupDimension === "area"
+                          ? "Performa Kinerja Wilayah (Area)"
+                          : overviewGroupDimension === "province"
+                            ? "Performa Kinerja per Provinsi"
+                            : overviewGroupDimension === "sales_agronomist"
+                              ? "Performa Kinerja Sales Agronomist (SA)"
+                              : overviewGroupDimension === "business_solution"
+                                ? "Performa Kinerja Business Solution (BS)"
+                                : overviewGroupDimension === "distributor"
+                                  ? "Performa Kinerja per Distributor"
+                                  : "Performa Kinerja per Hybrid"}
+                      </h3>
+                    </div>
+                    <p className="text-[10px] text-[#8E94B7] mt-0.5">
+                      {overviewMetricFilter === "movement"
+                        ? "Analisis perbandingan Stock In (Stok Masuk) vs POG (Penjualan)"
+                        : overviewMetricFilter === "idle"
+                          ? "Analisis perbandingan Idle Stock vs Sisa Stok Akhir"
+                          : overviewMetricFilter === "total_stock"
+                            ? "Analisis total sisa stok akhir"
+                            : overviewMetricFilter === "Opening"
+                              ? "Analisis perbandingan Stok Awal vs Sisa Stok Akhir"
+                              : "Analisis perbandingan POG (Penjualan) vs Sisa Stok Akhir"}
+                    </p>
                   </div>
-                  <p className="text-[10px] text-[#8E94B7] mt-0.5">
-                    {overviewMetricFilter === "movement"
-                      ? "Analisis perbandingan Stock In (Stok Masuk) vs POG (Penjualan)"
-                      : overviewMetricFilter === "idle"
-                        ? "Analisis perbandingan Idle Stock vs Sisa Stok Akhir"
-                        : overviewMetricFilter === "total_stock"
-                          ? "Analisis total sisa stok akhir"
-                          : overviewMetricFilter === "Opening"
-                            ? "Analisis perbandingan Stok Awal vs Sisa Stok Akhir"
-                            : "Analisis perbandingan POG (Penjualan) vs Sisa Stok Akhir"}
-                  </p>
+
+                  <button
+                    onClick={() => setIsChartFocusedModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-extrabold text-[#154be2] bg-[#154be2]/5 hover:bg-[#154be2]/10 active:bg-[#154be2]/20 transition-all rounded-xl border border-[#154be2]/10 shrink-0"
+                  >
+                    <span className="material-symbols-outlined text-sm font-bold">zoom_in</span>
+                    <span>Fokus Grafik</span>
+                  </button>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
@@ -8704,6 +8729,8 @@ const Dashboard = ({
                     <BarChart
                       data={overviewStats.areaChartData}
                       margin={{ top: 25, right: 10, left: -10, bottom: 25 }}
+                      barGap={currentBarGap}
+                      barCategoryGap={currentBarCategoryGap}
                     >
                       <defs>
                         <linearGradient
@@ -8800,7 +8827,7 @@ const Dashboard = ({
                         }
                         fill="url(#colorAreaPog)"
                         radius={[6, 6, 0, 0]}
-                        maxBarSize={32}
+                        maxBarSize={currentMaxBarSize}
                       >
                         <LabelList
                           dataKey={
@@ -8852,7 +8879,7 @@ const Dashboard = ({
                             }
                             fill="url(#colorAreaStock)"
                             radius={[6, 6, 0, 0]}
-                            maxBarSize={32}
+                            maxBarSize={currentMaxBarSize}
                           >
                             <LabelList
                               dataKey={
@@ -10510,6 +10537,233 @@ const Dashboard = ({
             isProcessing={isActionLoading}
             itemName={employeeDeleteModal.item?.name}
           />
+
+          {/* Focused Chart Modal */}
+          {isChartFocusedModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="relative w-full max-w-5xl bg-white rounded-[28px] shadow-[0_24px_64px_rgba(21,75,226,0.15)] border border-[#154be2]/10 p-6 md:p-8 flex flex-col justify-between max-h-[90vh] overflow-hidden">
+                {/* Header */}
+                <div className="flex items-start justify-between pb-4 border-b border-[#f0effc]">
+                  <div>
+                    <div className="flex items-center gap-2 text-primary font-bold">
+                      <span className="material-symbols-outlined text-[#154be2]">analytics</span>
+                      <span className="text-[14px] uppercase tracking-wider text-[#154be2] font-black">Detail Fokus Grafik</span>
+                    </div>
+                    <h3 className="text-lg font-black text-[#181a2c] tracking-tight mt-1">
+                      {overviewGroupDimension === "area"
+                        ? "Performa Kinerja Wilayah (Area)"
+                        : overviewGroupDimension === "province"
+                          ? "Performa Kinerja per Provinsi"
+                          : overviewGroupDimension === "sales_agronomist"
+                            ? "Performa Kinerja Sales Agronomist (SA)"
+                            : overviewGroupDimension === "business_solution"
+                              ? "Performa Kinerja Business Solution (BS)"
+                              : overviewGroupDimension === "distributor"
+                                ? "Performa Kinerja per Distributor"
+                                : "Performa Kinerja per Hybrid"}
+                    </h3>
+                    <p className="text-xs text-[#8E94B7] mt-1">
+                      {overviewMetricFilter === "movement"
+                        ? "Analisis perbandingan Stock In (Stok Masuk) vs POG (Penjualan)"
+                        : overviewMetricFilter === "idle"
+                          ? "Analisis perbandingan Idle Stock vs Sisa Stok Akhir"
+                          : overviewMetricFilter === "total_stock"
+                            ? "Analisis total sisa stok akhir"
+                            : overviewMetricFilter === "Opening"
+                              ? "Analisis perbandingan Stok Awal vs Sisa Stok Akhir"
+                              : "Analisis perbandingan POG (Penjualan) vs Sisa Stok Akhir"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setIsChartFocusedModalOpen(false)}
+                    className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-700"
+                  >
+                    <span className="material-symbols-outlined text-xl">close</span>
+                  </button>
+                </div>
+
+                {/* Controls inside Modal */}
+                <div className="flex flex-wrap items-center justify-between gap-4 py-4 bg-[#fbfaff] px-4 rounded-2xl border border-[#e2e8f0]/60 my-4 shrink-0">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider">Dimensi:</span>
+                      <select
+                        value={overviewGroupDimension}
+                        onChange={(e: any) => setOverviewGroupDimension(e.target.value as any)}
+                        className="bg-white border border-[#e2e8f0] rounded-xl px-2.5 py-1 text-xs font-black text-[#154be2] focus:outline-none focus:ring-1 focus:ring-[#154be2] cursor-pointer"
+                      >
+                        <option value="area">Area</option>
+                        <option value="province">Province</option>
+                        <option value="sales_agronomist">Sales Agronomist</option>
+                        <option value="business_solution">Business Solution</option>
+                        <option value="material">Hybrid</option>
+                        <option value="distributor">Distributor</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-[#8E94B7] uppercase tracking-wider">Metrik:</span>
+                      <select
+                        value={overviewMetricFilter}
+                        onChange={(e: any) => setOverviewMetricFilter(e.target.value as any)}
+                        className="bg-white border border-[#e2e8f0] rounded-xl px-2.5 py-1 text-xs font-black text-[#154be2] focus:outline-none focus:ring-1 focus:ring-[#154be2] cursor-pointer"
+                      >
+                        <option value="movement">Movement</option>
+                        <option value="idle">Idle Stock</option>
+                        <option value="total_stock">Total Stock</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Legend */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="size-3 rounded-[4px] bg-gradient-to-tr from-[#154be2] to-[#3b82f6]" />
+                      <span className="text-xs font-extrabold text-[#4e5572]">
+                        {overviewMetricFilter === "movement"
+                          ? "Stock In"
+                          : overviewMetricFilter === "idle"
+                            ? "Idle Stock"
+                            : overviewMetricFilter === "total_stock"
+                              ? "Total Stock"
+                              : overviewMetricFilter === "Opening"
+                                ? "Stok Awal"
+                                : "POG (Penjualan)"}
+                      </span>
+                    </div>
+                    {overviewMetricFilter !== "idle" && overviewMetricFilter !== "total_stock" && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="size-3 rounded-[4px] bg-gradient-to-tr from-[#06b6d4] to-[#22d3ee]" />
+                        <span className="text-xs font-extrabold text-[#4e5572]">
+                          {overviewMetricFilter === "movement" ? "POG" : "Stok Akhir"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Chart container in Modal */}
+                <div className="w-full flex-1 min-h-[350px] overflow-x-auto scrollbar-thin select-none">
+                  <div
+                    style={{
+                      minWidth: "100%",
+                      width:
+                        overviewStats.areaChartData.length > 8
+                          ? `${overviewStats.areaChartData.length * 100}px`
+                          : "100%",
+                      height: "400px",
+                    }}
+                    className="font-sans"
+                  >
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={overviewStats.areaChartData}
+                        margin={{ top: 25, right: 15, left: -10, bottom: 25 }}
+                        barGap={currentBarGap}
+                        barCategoryGap={currentBarCategoryGap}
+                      >
+                        <defs>
+                          <linearGradient id="modalColorAreaPog" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#154be2" stopOpacity={0.95} />
+                            <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.7} />
+                          </linearGradient>
+                          <linearGradient id="modalColorAreaStock" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.95} />
+                            <stop offset="100%" stopColor="#22d3ee" stopOpacity={0.7} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="name" tick={<CustomXAxisTick />} axisLine={false} tickLine={false} interval={0} />
+                        <YAxis tick={{ fill: "#8E94B7", fontSize: 10, fontWeight: 500 }} axisLine={false} tickLine={false} />
+                        <Tooltip
+                          cursor={{ fill: "rgba(21, 75, 226, 0.03)" }}
+                          contentStyle={{
+                            backgroundColor: "white",
+                            borderRadius: "16px",
+                            border: "1px solid #edecff",
+                            boxShadow: "0 12px 32px rgba(21,75,226,0.1)",
+                          }}
+                          labelStyle={{ fontSize: "12px", fontWeight: "bold", color: "#181a2c" }}
+                          itemStyle={{ fontSize: "11px", padding: "1px 0" }}
+                        />
+                        <Bar
+                          dataKey={
+                            overviewMetricFilter === "movement"
+                              ? "sellIn"
+                              : overviewMetricFilter === "idle"
+                                ? "idle"
+                                : overviewMetricFilter === "total_stock"
+                                  ? "stock"
+                                  : overviewMetricFilter === "Opening"
+                                    ? "opening"
+                                    : "pog"
+                          }
+                          name={
+                            overviewMetricFilter === "movement"
+                              ? "Stock In"
+                              : overviewMetricFilter === "idle"
+                                ? "Idle Stock"
+                                : overviewMetricFilter === "total_stock"
+                                  ? "Total Stock"
+                                  : overviewMetricFilter === "Opening"
+                                    ? "Stok Awal"
+                                    : "Penjualan (POG)"
+                          }
+                          fill="url(#modalColorAreaPog)"
+                          radius={[6, 6, 0, 0]}
+                          maxBarSize={currentMaxBarSize}
+                        >
+                          <LabelList
+                            dataKey={
+                              overviewMetricFilter === "movement"
+                                ? "sellIn"
+                                : overviewMetricFilter === "idle"
+                                  ? "idle"
+                                  : overviewMetricFilter === "total_stock"
+                                    ? "stock"
+                                    : overviewMetricFilter === "Opening"
+                                      ? "opening"
+                                      : "pog"
+                            }
+                            position="top"
+                            offset={8}
+                            style={{ fontSize: 10, fontWeight: 700, fill: "#154be2", fontFamily: "sans-serif" }}
+                            formatter={(val: any) => {
+                              if (val === undefined || val === null || isNaN(Number(val))) return "";
+                              const num = Number(val);
+                              if (num === 0) return "0";
+                              return Math.abs(num) < 10 ? num.toFixed(1) : Math.round(num).toLocaleString();
+                            }}
+                          />
+                        </Bar>
+                        {overviewMetricFilter !== "idle" && overviewMetricFilter !== "total_stock" && (
+                          <Bar
+                            dataKey={overviewMetricFilter === "movement" ? "pog" : "stock"}
+                            name={overviewMetricFilter === "movement" ? "POG" : "Stok Akhir"}
+                            fill="url(#modalColorAreaStock)"
+                            radius={[6, 6, 0, 0]}
+                            maxBarSize={currentMaxBarSize}
+                          >
+                            <LabelList
+                              dataKey={overviewMetricFilter === "movement" ? "pog" : "stock"}
+                              position="top"
+                              offset={8}
+                              style={{ fontSize: 10, fontWeight: 700, fill: "#0ea5e9", fontFamily: "sans-serif" }}
+                              formatter={(val: any) => {
+                                if (val === undefined || val === null || isNaN(Number(val))) return "";
+                                const num = Number(val);
+                                if (num === 0) return "0";
+                                return Math.abs(num) < 10 ? num.toFixed(1) : Math.round(num).toLocaleString();
+                              }}
+                            />
+                          </Bar>
+                        )}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -10641,10 +10895,10 @@ const Dashboard = ({
                           </div>
                           <div className="flex flex-col items-end">
                             <span className="font-bold text-sm text-primary">
-                              {formatNum(row.selectedTotal)}
+                              {formatOverviewVal(row.selectedTotal, overviewUseMt).valueStr}
                             </span>
                             <span className="text-[8px] text-[#8E94B7] uppercase tracking-widest font-bold">
-                              Total Kg
+                              Total {formatOverviewVal(row.selectedTotal, overviewUseMt).unit}
                             </span>
                           </div>
                         </div>
@@ -10668,7 +10922,7 @@ const Dashboard = ({
                                   {clusterConfig?.label || clusterKey}
                                 </span>
                                 <span className="font-semibold text-[10.5px] truncate w-full text-white">
-                                  {formatNum(row[clusterKey])}
+                                  {formatOverviewVal(row[clusterKey], overviewUseMt).valueStr}
                                 </span>
                               </div>
                             );
@@ -10718,9 +10972,9 @@ const Dashboard = ({
                                         <span
                                           className={`font-bold text-[11.5px] shrink-0 ${isChildZeroTeam ? "text-red-600" : "text-[#181a2c]"}`}
                                         >
-                                          {formatNum(child.selectedTotal)}{" "}
+                                          {formatOverviewVal(child.selectedTotal, overviewUseMt).valueStr}{" "}
                                           <span className="text-[8.5px] text-[#8E94B7]">
-                                            Kg
+                                            {formatOverviewVal(child.selectedTotal, overviewUseMt).unit}
                                           </span>
                                         </span>
                                       </div>
@@ -10768,7 +11022,7 @@ const Dashboard = ({
                                                     : "text-primary"
                                                 }`}
                                               >
-                                                {formatNum(child[clusterKey])}
+                                                {formatOverviewVal(child[clusterKey], overviewUseMt).valueStr}
                                               </span>
                                             </div>
                                           );
@@ -10913,10 +11167,10 @@ const Dashboard = ({
                           </div>
                           <div className="flex flex-col items-end">
                             <span className="font-bold text-sm text-primary">
-                              {formatNum(row.pog)}
+                              {formatOverviewVal(row.pog, overviewUseMt).valueStr}
                             </span>
                             <span className="text-[8px] text-[#8E94B7] uppercase tracking-widest font-bold">
-                              POG
+                              POG ({formatOverviewVal(row.pog, overviewUseMt).unit})
                             </span>
                           </div>
                         </div>
@@ -10929,7 +11183,7 @@ const Dashboard = ({
                                 Opening Inv
                               </span>
                               <span className="font-semibold text-[10.5px] truncate w-full text-white">
-                                {formatNum(row.lastQty)}
+                                {formatOverviewVal(row.lastQty, overviewUseMt).valueStr}
                               </span>
                             </div>
                             <div className="flex-1 min-w-0 p-2 flex flex-col items-center justify-center text-center hover:bg-white/10 transition-colors">
@@ -10937,7 +11191,7 @@ const Dashboard = ({
                                 End of Inv
                               </span>
                               <span className="font-semibold text-[10.5px] truncate w-full text-white">
-                                {formatNum(row.currentQty)}
+                                {formatOverviewVal(row.currentQty, overviewUseMt).valueStr}
                               </span>
                             </div>
                           </div>
@@ -10949,7 +11203,7 @@ const Dashboard = ({
                                 Stock in
                               </span>
                               <span className="font-semibold text-[10.5px] truncate w-full text-white">
-                                {formatNum(row.sellIn)}
+                                {formatOverviewVal(row.sellIn, overviewUseMt).valueStr}
                               </span>
                             </div>
                             <div className="flex-1 min-w-0 p-2 flex flex-col items-center justify-center text-center hover:bg-white/10 transition-colors">
@@ -10957,7 +11211,7 @@ const Dashboard = ({
                                 idle stock
                               </span>
                               <span className="font-semibold text-[10.5px] truncate w-full text-amber-100">
-                                {formatNum(row.idleStock)}
+                                {formatOverviewVal(row.idleStock, overviewUseMt).valueStr}
                               </span>
                             </div>
                             <div className="flex-1 min-w-0 p-2 flex flex-col items-center justify-center text-center hover:bg-white/10 transition-colors">
@@ -10965,7 +11219,7 @@ const Dashboard = ({
                                 POG
                               </span>
                               <span className="font-semibold text-[10.5px] truncate w-full text-cyan-100 font-extrabold">
-                                {formatNum(row.pog)}
+                                {formatOverviewVal(row.pog, overviewUseMt).valueStr}
                               </span>
                             </div>
                           </div>
@@ -11019,9 +11273,9 @@ const Dashboard = ({
                                           <span
                                             className={`font-bold text-[11.5px] shrink-0 ${isChildZeroTeam ? "text-red-600" : "text-primary"}`}
                                           >
-                                            {formatNum(child.pog)}{" "}
+                                            {formatOverviewVal(child.pog, overviewUseMt).valueStr}{" "}
                                             <span className="text-[8.5px] text-[#8E94B7]">
-                                              POG
+                                              POG ({formatOverviewVal(child.pog, overviewUseMt).unit})
                                             </span>
                                           </span>
                                         </div>
@@ -11057,7 +11311,7 @@ const Dashboard = ({
                                                     : "text-[#181a2c]"
                                                 }`}
                                               >
-                                                {formatNum(child.lastQty)}
+                                                {formatOverviewVal(child.lastQty, overviewUseMt).valueStr}
                                               </span>
                                             </div>
                                             <div
@@ -11083,7 +11337,7 @@ const Dashboard = ({
                                                     : "text-[#1d4ed8]"
                                                 }`}
                                               >
-                                                {formatNum(child.currentQty)}
+                                                {formatOverviewVal(child.currentQty, overviewUseMt).valueStr}
                                               </span>
                                             </div>
                                           </div>
@@ -11119,7 +11373,7 @@ const Dashboard = ({
                                                     : "text-[#154be2]"
                                                 }`}
                                               >
-                                                {formatNum(child.sellIn)}
+                                                {formatOverviewVal(child.sellIn, overviewUseMt).valueStr}
                                               </span>
                                             </div>
                                             <div
@@ -11145,7 +11399,7 @@ const Dashboard = ({
                                                     : "text-amber-700"
                                                 }`}
                                               >
-                                                {formatNum(child.idleStock)}
+                                                {formatOverviewVal(child.idleStock, overviewUseMt).valueStr}
                                               </span>
                                             </div>
                                             <div
@@ -11171,7 +11425,7 @@ const Dashboard = ({
                                                     : "text-emerald-700 font-extrabold"
                                                 }`}
                                               >
-                                                {formatNum(child.pog)}
+                                                {formatOverviewVal(child.pog, overviewUseMt).valueStr}
                                               </span>
                                             </div>
                                           </div>

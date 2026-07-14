@@ -658,6 +658,7 @@ async function handleGetWorkingData(user: string) {
     dr: getIdx(/^shipping date$|^dr date$/i),
     user: getIdx(/^name checker$|^nama checker$|^user$|^pic$|^checker$/i),
     pog: getIdx(/^pog$|^selisih$/i),
+    area: getIdx(/^area$|^region$/i),
   };
   const monthIndices = getMonthIndices(headers);
   const updMonthIndices = getUpdMonthIndices(headers);
@@ -700,6 +701,10 @@ async function handleGetWorkingData(user: string) {
           idx.pog !== -1 && row[idx.pog] !== "" && row[idx.pog] !== undefined
             ? Number(row[idx.pog]) || 0
             : 0,
+        area:
+          idx.area !== -1 && row[idx.area] !== "" && row[idx.area] !== undefined
+            ? String(row[idx.area]).trim()
+            : "",
       };
 
       const months = [
