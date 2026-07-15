@@ -1808,8 +1808,8 @@ const Dashboard = ({
   const isProvince = overviewGroupDimension === "province";
 
   const currentBarGap = 0;
-  const currentBarCategoryGap = isProvince && isMovement ? "10%" : (isArea && isMovement ? "15%" : "25%");
-  const currentMaxBarSize = isProvince && isMovement ? 55 : (isArea && isMovement ? 65 : 32);
+  const currentBarCategoryGap = "10%";
+  const currentMaxBarSize = 75;
 
   const isBusinessAnalyst = useMemo(() => {
     if (!userData) return false;
@@ -8717,7 +8717,7 @@ const Dashboard = ({
               <div className="w-full overflow-x-auto scrollbar-thin select-none">
                 <div
                   style={{
-                    minWidth: `${Math.max(500, overviewStats.areaChartData.length * 75)}px`,
+                    minWidth: `${Math.max(600, overviewStats.areaChartData.length * 95)}px`,
                     width: "100%",
                     height: "280px",
                   }}
@@ -9748,7 +9748,7 @@ const Dashboard = ({
                 <div className="w-full flex-1 min-h-[350px] overflow-x-auto overflow-y-hidden scrollbar-thin select-none">
                   <div
                     style={{
-                      minWidth: `${Math.max(600, overviewStats.areaChartData.length * 100)}px`,
+                      minWidth: `${Math.max(800, overviewStats.areaChartData.length * 120)}px`,
                       width: "100%",
                       height: "350px",
                     }}
