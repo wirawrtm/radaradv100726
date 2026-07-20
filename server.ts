@@ -665,7 +665,18 @@ async function handleGetWorkingData(user: string) {
 
   const result = data
     .slice(1)
-    .filter((row) => row[0] !== "" && row[0] !== undefined)
+    .filter((row) => {
+      // Robust check to skip completely empty spreadsheet rows, while preserving rows with empty timestamp
+      const kioskVal = idx.kiosk !== -1 ? row[idx.kiosk] : undefined;
+      const userVal = idx.user !== -1 ? row[idx.user] : undefined;
+      const lotVal = idx.lot !== -1 ? row[idx.lot] : undefined;
+      return (
+        row.length > 0 &&
+        ((kioskVal !== undefined && kioskVal !== "") ||
+         (userVal !== undefined && userVal !== "") ||
+         (lotVal !== undefined && lotVal !== ""))
+      );
+    })
     .map((row) => {
       const rowItem: any = {
         lot: idx.lot !== -1 ? row[idx.lot] : "",

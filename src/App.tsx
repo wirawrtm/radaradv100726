@@ -6908,7 +6908,7 @@ const Dashboard = ({
       if (grandTotalViewBy === "hybrid") {
         g = item.hybrid || "Unknown";
       } else if (grandTotalViewBy === "area") {
-        const itemProv = item.province || getFromRecord<string>(teamProvinces, item.pic);
+        const itemProv = item.province || getFromRecord<string>(teamProvinces, item.pic) || (item.area && item.area !== "-" ? item.area : "") || (item.rawArea && item.rawArea !== "-" ? item.rawArea : "");
         g = (itemProv && itemProv !== "-") ? itemProv : "Unknown";
       }
       
@@ -8281,7 +8281,7 @@ const Dashboard = ({
                 <span className="text-primary font-bold">Overview</span>
               </h1>
               <p className="text-[11px] text-[#8E94B7] font-semibold uppercase tracking-wider mt-0.5">
-                Analisis Nasional - Level {userLevel} & Eksekutif
+                Analisis Kinerja & Pemantauan Tingkat Nasional
               </p>
             </div>
           </div>
@@ -8800,6 +8800,10 @@ const Dashboard = ({
                           color: "#181a2c",
                         }}
                         itemStyle={{ fontSize: "10px", padding: "1px 0" }}
+                        formatter={(value: any, name: any) => {
+                          if (value === undefined || value === null || isNaN(Number(value))) return [value, name];
+                          return [Math.round(Number(value)).toLocaleString("id-ID"), name];
+                        }}
                       />
                       <Bar
                         dataKey={
@@ -9784,6 +9788,10 @@ const Dashboard = ({
                           }}
                           labelStyle={{ fontSize: "12px", fontWeight: "bold", color: "#181a2c" }}
                           itemStyle={{ fontSize: "11px", padding: "1px 0" }}
+                          formatter={(value: any, name: any) => {
+                            if (value === undefined || value === null || isNaN(Number(value))) return [value, name];
+                            return [Math.round(Number(value)).toLocaleString("id-ID"), name];
+                          }}
                         />
                         <Bar
                           dataKey={

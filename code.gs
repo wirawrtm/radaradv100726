@@ -496,7 +496,15 @@ function handleGetWorkingData(user) {
   var updMonthIndices = getUpdMonthIndices(headers);
   
   var result = data.slice(1).filter(function(row) {
-    return row[0] !== "" && row[0] !== undefined;
+    var kioskVal = idx.kiosk !== -1 ? row[idx.kiosk] : undefined;
+    var userVal = idx.user !== -1 ? row[idx.user] : undefined;
+    var lotVal = idx.lot !== -1 ? row[idx.lot] : undefined;
+    return (
+      row.length > 0 &&
+      ((kioskVal !== undefined && kioskVal !== "") ||
+       (userVal !== undefined && userVal !== "") ||
+       (lotVal !== undefined && lotVal !== ""))
+    );
   }).map(function(row) {
     var rowItem = {
       lot: idx.lot !== -1 ? row[idx.lot] : "",
