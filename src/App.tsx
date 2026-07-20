@@ -7707,11 +7707,11 @@ const Dashboard = ({
               className={`flex-1 min-w-0 p-2 flex flex-col items-center justify-center text-center transition-colors ${isZeroPogActivity ? "hover:bg-white/15" : "hover:bg-white/10"}`}
             >
               <span
-                className={`text-[8px] font-bold uppercase tracking-wider mb-0.5 truncate w-full ${isZeroPogActivity ? "text-white/80" : "text-cyan-250"}`}
+                className={`text-[8px] font-bold uppercase tracking-wider mb-0.5 truncate w-full ${isZeroPogActivity ? "text-white/80" : "text-cyan-200"}`}
               >
                 POG
               </span>
-              <span className="font-semibold text-[10.5px] truncate w-full text-white font-extrabold">
+              <span className={`font-semibold text-[10.5px] truncate w-full font-extrabold ${isZeroPogActivity ? "text-white" : "text-cyan-100"}`}>
                 {formatOverviewVal(row.pog, overviewUseMt).valueStr}
               </span>
             </div>
