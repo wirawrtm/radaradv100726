@@ -484,7 +484,7 @@ function handleGetWorkingData(user) {
     aging: getIdx(/^aging \(month\)/i),
     exp: getIdx(/^exp date$|^expired$/i),
     kiosk: getIdx(/^channel$|^kiosk$/i),
-    cat: getIdx(/^category$|^kategori$|^klasifikasi$|^cat$/i),
+    cat: getIdx(/category|kategori|klasifikasi|^cat/i),
     crops: getIdx(/^crops$/i),
     time: getIdx(/^tgl$|^waktu$|^date$|^timestamp$/i),
     cond: getIdx(/^condition$|^kondisi$/i),

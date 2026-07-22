@@ -86,6 +86,72 @@ const cleanForMatch = (s: any) =>
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
 
+const getValidCategory = (
+  itemCat?: any,
+  kioskCat?: any,
+  kioskName?: string,
+  fallbackMap?: Record<string, string>,
+) => {
+  const cleanItem = String(itemCat || "").trim();
+  const cleanKiosk = String(kioskCat || "").trim();
+
+  const isInvalid = (val: string) =>
+    !val ||
+    val === "-" ||
+    val.toLowerCase() === "uncategorized" ||
+    val.toLowerCase() === "n/a" ||
+    val.toLowerCase() === "unknown";
+
+  let selected = "";
+  if (!isInvalid(cleanItem)) {
+    selected = cleanItem;
+  } else if (!isInvalid(cleanKiosk)) {
+    selected = cleanKiosk;
+  } else if (fallbackMap && kioskName) {
+    const cleanK = cleanForMatch(kioskName);
+    const mapped = fallbackMap[cleanK];
+    if (mapped && !isInvalid(mapped)) {
+      selected = mapped;
+    } else {
+      for (const [mk, mv] of Object.entries(fallbackMap)) {
+        if ((mk.includes(cleanK) || cleanK.includes(mk)) && !isInvalid(mv)) {
+          selected = mv;
+          break;
+        }
+      }
+    }
+  }
+
+  // Fallback 1: Infer category from kioskName keywords
+  if (!selected && kioskName) {
+    const kLower = kioskName.toLowerCase();
+    if (
+      kLower.includes("distributor") ||
+      kLower.includes("distr") ||
+      kLower.includes("gudang") ||
+      kLower.includes("warehouse") ||
+      kLower.includes("subd")
+    ) {
+      selected = "Distributor";
+    } else if (/\br1\b|toko r1|mitra r1|kiosk r1/i.test(kioskName)) {
+      selected = "R1";
+    } else if (/\br2\b|toko r2|mitra r2|kiosk r2/i.test(kioskName)) {
+      selected = "R2";
+    }
+  }
+
+  // Fallback 2: Default channel classification if unassigned
+  if (!selected) {
+    selected = "R1";
+  }
+
+  const lower = selected.toLowerCase();
+  if (lower === "distributor") return "Distributor";
+  if (lower === "r1") return "R1";
+  if (lower === "r2") return "R2";
+  return selected.charAt(0).toUpperCase() + selected.slice(1);
+};
+
 const matchNames = (name1: any, name2: any) => {
   const c1 = cleanForMatch(name1);
   const c2 = cleanForMatch(name2);
@@ -2796,6 +2862,49 @@ const Dashboard = ({
     };
   }, []);
 
+  const workingCategoryMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (rawWorkingData && Array.isArray(rawWorkingData)) {
+      rawWorkingData.forEach((d) => {
+        const kClean = cleanForMatch(d.kiosk);
+        const rawCat =
+          d.category ||
+          d.Category ||
+          d.CATEGORY ||
+          d.kategori ||
+          d.Kategori ||
+          d.klasifikasi ||
+          d.cat ||
+          d.Cat ||
+          "";
+        const cat = getValidCategory(rawCat, undefined, d.kiosk);
+        if (kClean && cat && cat !== "Uncategorized") {
+          map[kClean] = cat;
+        }
+      });
+    }
+    if (kiosks && Array.isArray(kiosks)) {
+      kiosks.forEach((k) => {
+        const kClean = cleanForMatch(k.name);
+        const rawCat =
+          k.category ||
+          k.Category ||
+          k.CATEGORY ||
+          k.kategori ||
+          k.Kategori ||
+          k.klasifikasi ||
+          k.cat ||
+          k.Cat ||
+          "";
+        const cat = getValidCategory(rawCat, undefined, k.name);
+        if (kClean && cat && cat !== "Uncategorized") {
+          if (!map[kClean]) map[kClean] = cat;
+        }
+      });
+    }
+    return map;
+  }, [rawWorkingData, kiosks]);
+
   const fetchWorkingData = async (
     presetData?: any[],
     presetDrSales?: any[],
@@ -2834,7 +2943,16 @@ const Dashboard = ({
                 item.CROPS ||
                 "Uncategorized Crops";
               const areaVal = item.area || item.Area || item.AREA;
-              const catVal = item.category || item.Category || item.CATEGORY || "";
+              const catVal =
+                item.category ||
+                item.Category ||
+                item.CATEGORY ||
+                item.kategori ||
+                item.Kategori ||
+                item.klasifikasi ||
+                item.cat ||
+                item.Cat ||
+                "";
               return { ...item, crops: cropVal, area: areaVal, category: catVal };
             });
             success = true;
@@ -3126,7 +3244,16 @@ const Dashboard = ({
               item.CROPS ||
               "Uncategorized Crops";
             const areaVal = item.area || item.Area || item.AREA;
-            const catVal = item.category || item.Category || item.CATEGORY || "";
+            const catVal =
+              item.category ||
+              item.Category ||
+              item.CATEGORY ||
+              item.kategori ||
+              item.Kategori ||
+              item.klasifikasi ||
+              item.cat ||
+              item.Cat ||
+              "";
             return { ...item, crops: cropVal, area: areaVal, category: catVal };
           });
 
@@ -3228,7 +3355,17 @@ const Dashboard = ({
               item.CROPS ||
               "Uncategorized Crops";
             const areaVal = item.area || item.Area || item.AREA;
-            return { ...item, crops: cropVal, area: areaVal };
+            const catVal =
+              item.category ||
+              item.Category ||
+              item.CATEGORY ||
+              item.kategori ||
+              item.Kategori ||
+              item.klasifikasi ||
+              item.cat ||
+              item.Cat ||
+              "";
+            return { ...item, crops: cropVal, area: areaVal, category: catVal };
           });
         }
         const drSales =
@@ -4049,7 +4186,13 @@ const Dashboard = ({
         userData?.name,
         computedTeamProfiles,
       );
-      return { ...k, pic: resolvedPic };
+      const cat = getValidCategory(
+        k.category,
+        undefined,
+        k.name,
+        workingCategoryMap,
+      );
+      return { ...k, pic: resolvedPic, category: cat };
     });
 
     const isAll =
@@ -4062,7 +4205,7 @@ const Dashboard = ({
       });
     }
     return enrichedKiosks.filter((k) => matchNames(k.pic, mappingPic));
-  }, [kiosks, mappingPic, teamMembers, userData]);
+  }, [kiosks, mappingPic, teamMembers, userData, workingCategoryMap]);
 
   const mappingCategories = useMemo(() => {
     const rawCats = [
@@ -4216,7 +4359,10 @@ const Dashboard = ({
       itemCategory?: string,
     ) => {
       const cleanKName = cleanForMatch(kioskName);
-      const kInfo = kiosksMapByCleanName[cleanKName] || {};
+      const kInfo =
+        kiosksMapByCleanName[cleanKName] ||
+        kiosks.find((k) => matchNames(k.name, kioskName)) ||
+        {};
       const rawPic = normalizeName(String(itemUser || kInfo.pic || "Unknown"));
       const pic = getDdaOfUser(rawPic, userData?.name, computedTeamProfiles);
       let upline = normalizeName(String(kInfo.upline || ""));
@@ -4248,7 +4394,12 @@ const Dashboard = ({
         area = userData?.area || "-";
       }
 
-      const category = String(itemCategory || kInfo.category || "Uncategorized").trim();
+      const category = getValidCategory(
+        itemCategory,
+        kInfo.category,
+        kioskName,
+        workingCategoryMap,
+      );
       return { pic, upline, area, category, kInfo };
     };
 
@@ -4387,7 +4538,12 @@ const Dashboard = ({
     // 2. Channel (Category)
     const channelsSet = new Set<string>();
     kiosks.forEach((k) => {
-      if (k.category) channelsSet.add(String(k.category).trim());
+      const cat = getValidCategory(k.category, undefined, k.name, workingCategoryMap);
+      if (cat && cat !== "Uncategorized") channelsSet.add(cat);
+    });
+    rawData.forEach((d) => {
+      const cat = getValidCategory(d.category, undefined, d.kiosk, workingCategoryMap);
+      if (cat && cat !== "Uncategorized") channelsSet.add(cat);
     });
     const channels = Array.from(channelsSet).filter(Boolean).sort();
 
@@ -4443,7 +4599,15 @@ const Dashboard = ({
       teams,
       areas,
     };
-  }, [rawWorkingData, kiosks, userData, teamMembers, teamAreas, employees]);
+  }, [
+    rawWorkingData,
+    kiosks,
+    userData,
+    teamMembers,
+    teamAreas,
+    employees,
+    workingCategoryMap,
+  ]);
 
   // Recalculate processed POG data base on selected month filter
   const pogDataProcessedForOverview = useMemo(() => {
@@ -4525,7 +4689,10 @@ const Dashboard = ({
       itemCategory?: string,
     ) => {
       const cleanKName = cleanForMatch(kioskName);
-      const kInfo = kiosksMapByCleanName[cleanKName] || {};
+      const kInfo =
+        kiosksMapByCleanName[cleanKName] ||
+        kiosks.find((k) => matchNames(k.name, kioskName)) ||
+        {};
       const rawPic = normalizeName(String(itemUser || kInfo.pic || "Unknown"));
       const pic = getDdaOfUser(rawPic, userData?.name, computedTeamProfiles);
       let upline = normalizeName(String(kInfo.upline || ""));
@@ -4545,7 +4712,12 @@ const Dashboard = ({
         area = userData?.area || "-";
       }
 
-      const category = String(itemCategory || kInfo.category || "Uncategorized").trim();
+      const category = getValidCategory(
+        itemCategory,
+        kInfo.category,
+        kioskName,
+        workingCategoryMap,
+      );
       return { pic, upline, area, category, kInfo };
     };
 
@@ -4999,7 +5171,12 @@ const Dashboard = ({
     // Group by Category of Kiosk (Channel)
     const catMap: Record<string, { name: string; value: number }> = {};
     activeKiosks.forEach((k) => {
-      const cat = k.category || "Uncategorized";
+      const cat = getValidCategory(
+        k.category,
+        undefined,
+        k.name,
+        workingCategoryMap,
+      );
       if (!catMap[cat]) {
         catMap[cat] = { name: cat, value: 0 };
       }
@@ -5069,7 +5246,12 @@ const Dashboard = ({
       if (!kioskSales[kName]) {
         kioskSales[kName] = {
           kiosk: kName,
-          category: item.category || "Uncategorized",
+          category: getValidCategory(
+            item.category,
+            undefined,
+            item.kiosk,
+            workingCategoryMap,
+          ),
           pic: item.pic || "Unknown",
           area: item.area || "-",
           pog: 0,
@@ -5952,7 +6134,10 @@ const Dashboard = ({
       const itemYear = d ? d.getFullYear() : null;
 
       const kClean = cleanForMatch(item.kiosk);
-      const kioskInfo = kiosksMapByCleanName[kClean] || {};
+      const kioskInfo =
+        kiosksMapByCleanName[kClean] ||
+        kiosks.find((k) => matchNames(k.name, item.kiosk)) ||
+        {};
       const rawPic = normalizeName(
         String(item.user || kioskInfo.pic || "Unknown"),
       );
@@ -5987,7 +6172,12 @@ const Dashboard = ({
         }
       }
 
-      const category = String(item.category || kioskInfo.category || "Uncategorized").trim();
+      const category = getValidCategory(
+        item.category,
+        kioskInfo.category,
+        item.kiosk,
+        workingCategoryMap,
+      );
 
       let cluster = "Uncategorized";
       const aging = Number(item.aging);

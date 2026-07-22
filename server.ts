@@ -652,7 +652,7 @@ async function handleGetWorkingData(user: string) {
     aging: getIdx(/^aging \(month\)/i),
     exp: getIdx(/^exp date$|^expired$/i),
     kiosk: getIdx(/^channel$|^kiosk$/i),
-    cat: getIdx(/^category$|^kategori$|^klasifikasi$|^cat$/i),
+    cat: getIdx(/category|kategori|klasifikasi|^cat/i),
     crops: getIdx(/^crops$/i),
     time: getIdx(/^tgl$|^waktu$|^date$|^timestamp$/i),
     cond: getIdx(/^condition$|^kondisi$/i),
@@ -994,7 +994,7 @@ async function handleGetChannels(user: string) {
       const catValue =
         idx.cat !== -1 && row[idx.cat] !== "" && row[idx.cat] !== undefined
           ? String(row[idx.cat]).trim()
-          : "Uncategorized";
+          : "";
       const rowGroup =
         idx.group !== -1 &&
         row[idx.group] !== "" &&
@@ -1576,7 +1576,7 @@ async function handleBatchActivity(body: any) {
   const idx = {
     time: getIdx(/^tgl$|^waktu$|^date$|^timestamp$/i),
     kiosk: getIdx(/^channel$|^kiosk$/i),
-    cat: getIdx(/^category$|^kategori$|^klasifikasi$|^cat$/i),
+    cat: getIdx(/category|kategori|klasifikasi|^cat/i),
     user: getIdx(/^name checker$|^nama checker$|^user$|^pic$|^checker$/i),
     lot: getIdx(/^lot package$|^lot$/i),
     qty: getIdx(/^quantity \(kg\)|^qty$|^stock$|^kg$/i),
@@ -1773,7 +1773,7 @@ async function handleConsolidateDatabase(body: any) {
   const idx = {
     time: getIdx(/^tgl$|^waktu$|^date$|^timestamp$/i),
     kiosk: getIdx(/^channel$|^kiosk$/i),
-    cat: getIdx(/^category$|^kategori$|^klasifikasi$|^cat$/i),
+    cat: getIdx(/category|kategori|klasifikasi|^cat/i),
     user: getIdx(/^name checker$|^nama checker$|^user$|^pic$|^checker$/i),
     lot: getIdx(/^lot package$|^lot$/i),
     qty: getIdx(/^quantity \(kg\)|^qty$|^stock$|^kg$/i),
