@@ -2834,7 +2834,8 @@ const Dashboard = ({
                 item.CROPS ||
                 "Uncategorized Crops";
               const areaVal = item.area || item.Area || item.AREA;
-              return { ...item, crops: cropVal, area: areaVal };
+              const catVal = item.category || item.Category || item.CATEGORY || "";
+              return { ...item, crops: cropVal, area: areaVal, category: catVal };
             });
             success = true;
           }
@@ -3125,7 +3126,8 @@ const Dashboard = ({
               item.CROPS ||
               "Uncategorized Crops";
             const areaVal = item.area || item.Area || item.AREA;
-            return { ...item, crops: cropVal, area: areaVal };
+            const catVal = item.category || item.Category || item.CATEGORY || "";
+            return { ...item, crops: cropVal, area: areaVal, category: catVal };
           });
 
           const drSales =
@@ -3921,6 +3923,15 @@ const Dashboard = ({
       }
     });
 
+    rawWorkingData.forEach((d) => {
+      if (d.kiosk && d.category) {
+        const cleanK = cleanForMatch(d.kiosk);
+        if (cleanK) {
+          kioskCategoryMap[cleanK] = String(d.category).trim();
+        }
+      }
+    });
+
     const monthKeys = [
       "jan",
       "feb",
@@ -4198,7 +4209,12 @@ const Dashboard = ({
 
     const lotMap: Record<string, any> = {};
 
-    const resolveHierarchy = (kioskName: string, itemUser?: string, itemArea?: string) => {
+    const resolveHierarchy = (
+      kioskName: string,
+      itemUser?: string,
+      itemArea?: string,
+      itemCategory?: string,
+    ) => {
       const cleanKName = cleanForMatch(kioskName);
       const kInfo = kiosksMapByCleanName[cleanKName] || {};
       const rawPic = normalizeName(String(itemUser || kInfo.pic || "Unknown"));
@@ -4232,7 +4248,7 @@ const Dashboard = ({
         area = userData?.area || "-";
       }
 
-      const category = String(kInfo.category || "Uncategorized").trim();
+      const category = String(itemCategory || kInfo.category || "Uncategorized").trim();
       return { pic, upline, area, category, kInfo };
     };
 
@@ -4255,7 +4271,7 @@ const Dashboard = ({
     const targetMonthCol = monthCols[currentMonth];
 
     rawWorkingData.forEach((d) => {
-      const h = resolveHierarchy(d.kiosk, d.user, d.area);
+      const h = resolveHierarchy(d.kiosk, d.user, d.area, d.category);
       const crops =
         d.crops && String(d.crops).trim() !== ""
           ? d.crops
@@ -4502,7 +4518,12 @@ const Dashboard = ({
 
     const lotMap: Record<string, any> = {};
 
-    const resolveHierarchy = (kioskName: string, itemUser?: string, itemArea?: string) => {
+    const resolveHierarchy = (
+      kioskName: string,
+      itemUser?: string,
+      itemArea?: string,
+      itemCategory?: string,
+    ) => {
       const cleanKName = cleanForMatch(kioskName);
       const kInfo = kiosksMapByCleanName[cleanKName] || {};
       const rawPic = normalizeName(String(itemUser || kInfo.pic || "Unknown"));
@@ -4524,7 +4545,7 @@ const Dashboard = ({
         area = userData?.area || "-";
       }
 
-      const category = String(kInfo.category || "Uncategorized").trim();
+      const category = String(itemCategory || kInfo.category || "Uncategorized").trim();
       return { pic, upline, area, category, kInfo };
     };
 
@@ -4540,7 +4561,7 @@ const Dashboard = ({
         return;
       }
 
-      const h = resolveHierarchy(d.kiosk, d.user, d.area);
+      const h = resolveHierarchy(d.kiosk, d.user, d.area, d.category);
       const crops =
         d.crops && String(d.crops).trim() !== ""
           ? d.crops
@@ -5966,7 +5987,7 @@ const Dashboard = ({
         }
       }
 
-      const category = String(kioskInfo.category || "Uncategorized").trim();
+      const category = String(item.category || kioskInfo.category || "Uncategorized").trim();
 
       let cluster = "Uncategorized";
       const aging = Number(item.aging);

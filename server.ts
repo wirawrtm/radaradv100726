@@ -652,6 +652,7 @@ async function handleGetWorkingData(user: string) {
     aging: getIdx(/^aging \(month\)/i),
     exp: getIdx(/^exp date$|^expired$/i),
     kiosk: getIdx(/^channel$|^kiosk$/i),
+    cat: getIdx(/^category$|^kategori$|^klasifikasi$|^cat$/i),
     crops: getIdx(/^crops$/i),
     time: getIdx(/^tgl$|^waktu$|^date$|^timestamp$/i),
     cond: getIdx(/^condition$|^kondisi$/i),
@@ -704,6 +705,10 @@ async function handleGetWorkingData(user: string) {
         drDate:
           idx.dr !== -1 && row[idx.dr] ? formatMyDate(row[idx.dr]) : "N/A",
         kiosk: idx.kiosk !== -1 ? row[idx.kiosk] : "",
+        category:
+          idx.cat !== -1 && row[idx.cat] !== "" && row[idx.cat] !== undefined
+            ? String(row[idx.cat]).trim()
+            : "",
         timestamp: idx.time !== -1 && row[idx.time] ? row[idx.time] : "",
         condition: idx.cond !== -1 && row[idx.cond] ? row[idx.cond] : "tetap",
         user:
@@ -1571,6 +1576,7 @@ async function handleBatchActivity(body: any) {
   const idx = {
     time: getIdx(/^tgl$|^waktu$|^date$|^timestamp$/i),
     kiosk: getIdx(/^channel$|^kiosk$/i),
+    cat: getIdx(/^category$|^kategori$|^klasifikasi$|^cat$/i),
     user: getIdx(/^name checker$|^nama checker$|^user$|^pic$|^checker$/i),
     lot: getIdx(/^lot package$|^lot$/i),
     qty: getIdx(/^quantity \(kg\)|^qty$|^stock$|^kg$/i),
@@ -1692,11 +1698,14 @@ async function handleBatchActivity(body: any) {
           data[rowIndex][idx.agingExp] = agingExpVal;
         if (idx.cluster !== -1 && clusterVal !== "")
           data[rowIndex][idx.cluster] = clusterVal;
+        if (idx.cat !== -1 && (item.category || body.category))
+          data[rowIndex][idx.cat] = item.category || body.category;
         if (idx.pog !== -1) data[rowIndex][idx.pog] = pogVal;
       } else {
         const newRow = new Array(headers.length).fill("");
         if (idx.time !== -1) newRow[idx.time] = timestamp;
         if (idx.kiosk !== -1) newRow[idx.kiosk] = item.kiosk;
+        if (idx.cat !== -1) newRow[idx.cat] = item.category || body.category || "";
         if (idx.user !== -1) newRow[idx.user] = item.user || body.user;
         if (idx.lot !== -1) newRow[idx.lot] = String(item.lot).toUpperCase();
 
@@ -1764,6 +1773,7 @@ async function handleConsolidateDatabase(body: any) {
   const idx = {
     time: getIdx(/^tgl$|^waktu$|^date$|^timestamp$/i),
     kiosk: getIdx(/^channel$|^kiosk$/i),
+    cat: getIdx(/^category$|^kategori$|^klasifikasi$|^cat$/i),
     user: getIdx(/^name checker$|^nama checker$|^user$|^pic$|^checker$/i),
     lot: getIdx(/^lot package$|^lot$/i),
     qty: getIdx(/^quantity \(kg\)|^qty$|^stock$|^kg$/i),
@@ -1885,6 +1895,10 @@ async function handleConsolidateDatabase(body: any) {
     if (!grouped[groupKey]) {
       grouped[groupKey] = {
         kiosk: kioskVal,
+        category:
+          idx.cat !== -1 && colIndexInBounds(idx.cat, row)
+            ? String(row[idx.cat] || "").trim()
+            : "",
         lot: lotVal,
         desc: descVal,
         user: userVal,
@@ -1963,6 +1977,8 @@ async function handleConsolidateDatabase(body: any) {
 
       if (idx.area !== -1 && colIndexInBounds(idx.area, row))
         updateField("area", getUserProvince(userVal, empData) || row[idx.area]);
+      if (idx.cat !== -1 && colIndexInBounds(idx.cat, row))
+        updateField("category", row[idx.cat]);
       if (idx.crops !== -1 && colIndexInBounds(idx.crops, row))
         updateField("crops", row[idx.crops]);
       if (idx.exp !== -1) updateField("exp", currentExp);
@@ -2093,6 +2109,7 @@ async function handleConsolidateDatabase(body: any) {
 
     if (idx.time !== -1) newRow[idx.time] = timestamp;
     if (idx.kiosk !== -1) newRow[idx.kiosk] = g.kiosk;
+    if (idx.cat !== -1) newRow[idx.cat] = g.category || "";
     if (idx.user !== -1) newRow[idx.user] = g.user;
     if (idx.lot !== -1) newRow[idx.lot] = String(g.lot).toUpperCase();
     if (idx.qty !== -1) newRow[idx.qty] = g.monthlyQty[curMonthIdx];
